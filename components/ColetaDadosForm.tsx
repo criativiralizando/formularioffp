@@ -11,6 +11,7 @@ import Image from "next/image"
 import { useTheme } from "next-themes"
 import { TravelIssuedForm, type TravelIssuedData } from "@/components/TravelIssuedForm"
 import { TravelPlannedForm, type TravelPlannedData } from "@/components/TravelPlannedForm"
+import { generateAndUploadPDF } from "@/lib/generatePDF"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -232,10 +233,28 @@ export function ColetaDadosForm() {
         const toastId = toast.loading("Enviando tudo para a gestão...")
         try {
             if (dealId) {
+                // Prepare full form data for PDF
+                const fullFormData = {
+                    ...form.getValues(),
+                    step2: travelIssued,
+                    step3: data
+                }
+                const pdfUrl = await generateAndUploadPDF(fullFormData, form.getValues().email)
+
+                // Add PDF url to the bitrix update data if it exists
+                const updatePayload = {
+                    dealId,
+                    step: 3,
+                    data: {
+                        ...data,
+                        pdfUrl: pdfUrl || ""
+                    }
+                }
+
                 const response = await fetch('/api/bitrix/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dealId, step: 3, data }),
+                    body: JSON.stringify(updatePayload),
                 })
                 const result = await response.json()
                 if (response.ok || result.success) {

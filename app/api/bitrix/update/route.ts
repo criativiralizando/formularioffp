@@ -100,6 +100,7 @@ function buildCommentSection(step: number, data: Record<string, unknown>): strin
         <b>Orçamento:</b> ${p.budget}<br/>
         <b>Ajuda da equipe:</b> ${p.teamHelp}<br/>
         ${p.teamHelp === 'Sim' ? `<b>Observações:</b> ${p.teamHelpNotes}<br/>` : ''}
+        ${p.pdfUrl ? `<br/><br/><b>Link do Relatório PDF:</b> <a href="${p.pdfUrl}" target="_blank">${p.pdfUrl}</a><br/>` : ''}
       ` : ''}
     `;
     }
