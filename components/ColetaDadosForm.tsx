@@ -35,28 +35,30 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BANK_DATA } from "@/lib/bank-data"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Textarea } from "@/components/ui/textarea"
 
 // Form Schema
 const cardSchema = z.object({
-    bank: z.string().min(1, { message: "Selecione o banco" }),
-    bankOther: z.string().optional(),
-    card: z.string().min(1, { message: "Selecione o cartão" }),
-    cardOther: z.string().optional(),
-    brand: z.string().min(1, { message: "Selecione a bandeira" }),
-    brandOther: z.string().optional(),
-    category: z.string().min(1, { message: "Selecione a categoria" }),
-    categoryOther: z.string().optional(),
-    monthlySpend: z.string().min(1, { message: "Informe o gasto médio" }),
-    annuityFree: z.string().min(1, { message: "Selecione o status da anuidade" }),
+    bank: z.string(),
+    bankOther: z.string(),
+    card: z.string(),
+    cardOther: z.string(),
+    brand: z.string(),
+    brandOther: z.string(),
+    category: z.string(),
+    categoryOther: z.string(),
+    monthlySpend: z.string(),
+    annuityFree: z.string(),
 })
 
 const formSchema = z.object({
-    fullName: z.string().min(3, { message: "Nome completo é obrigatório" }),
-    phone: z.string().min(14, { message: "WhatsApp inválido" }),
-    email: z.string().email({ message: "E-mail inválido" }),
-    responsavel: z.string().min(1, { message: "Responsável é obrigatório" }),
-    comentario: z.string().optional(),
-    cards: z.array(cardSchema).min(1, { message: "Adicione pelo menos um cartão" }).max(5),
+    fullName: z.string(),
+    phone: z.string(),
+    email: z.string(),
+    responsavel: z.string(),
+    tipoDemanda: z.string().min(1, { message: "Tipo de Demanda é obrigatório" }),
+    comentario: z.string(),
+    cards: z.array(cardSchema),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -87,6 +89,7 @@ export function ColetaDadosForm() {
 
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
     const [dealId, setDealId] = useState<number | null>(urlDealId ? parseInt(urlDealId) : null)
+    const [stageId, setStageId] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isSuccess, setIsSuccess] = useState(false)
     const [travelIssued, setTravelIssued] = useState<TravelIssuedData>(defaultTravelIssued)
@@ -94,9 +97,23 @@ export function ColetaDadosForm() {
     const { resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
 
+    // Category 44 (Success) Early Stages where we hide "Coleta de Informações"
+    const EARLY_STAGES = ["C44:NEW", "C44:UC_1OICBB", "C44:UC_9W9J3I", "C44:EXECUTING"]
+    const isEarlyStage = stageId !== null && EARLY_STAGES.includes(stageId)
+
     useEffect(() => {
         setMounted(true)
-    }, [])
+        if (dealId) {
+            fetch(`/api/bitrix/deal?id=${dealId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.result?.STAGE_ID) {
+                        setStageId(data.result.STAGE_ID)
+                    }
+                })
+                .catch(err => console.error("Error fetching deal stage:", err))
+        }
+    }, [dealId])
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -105,8 +122,20 @@ export function ColetaDadosForm() {
             phone: "",
             email: "",
             responsavel: "",
+            tipoDemanda: "",
             comentario: "",
-            cards: [{ bank: "", card: "", brand: "", category: "", monthlySpend: "", annuityFree: "" }],
+            cards: [{
+                bank: "",
+                bankOther: "",
+                card: "",
+                cardOther: "",
+                brand: "",
+                brandOther: "",
+                category: "",
+                categoryOther: "",
+                monthlySpend: "",
+                annuityFree: ""
+            }],
         },
     })
 
@@ -181,8 +210,14 @@ export function ColetaDadosForm() {
         onChange(formattedValue)
     }
 
-    // Step 1 → Save locally, go to step 2 (Deal creation delayed)
+    // Step 1 → Save locally, go to step 2 OR submit if early stage
     async function onSubmit(values: FormValues) {
+        if (isEarlyStage) {
+            // Submit immediately if it's an early stage (since we hide subsequent steps)
+            await handleFinalSubmit(values, travelIssued, travelPlanned)
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading("Salvando seus dados...")
         try {
@@ -198,31 +233,18 @@ export function ColetaDadosForm() {
         }
     }
 
-    // Step 2 → Save locally, go to step 3
-    async function handleTravelIssuedNext(data: TravelIssuedData, skipToPage3: boolean) {
-        setTravelIssued(data)
-        saveTravelData(data)
-        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, currentStep: 3 }))
-        setCurrentStep(3)
-    }
-
-    // Step 3 → Final submission (Create or Update deal)
-    async function handleTravelPlannedSubmit(data: TravelPlannedData) {
-        setTravelPlanned(data)
-        saveTravelData(travelIssued, data)
+    // Extracted shared submission logic
+    async function handleFinalSubmit(step1Values: FormValues, step2: TravelIssuedData, step3: TravelPlannedData) {
         setIsSubmitting(true)
         const toastId = toast.loading("Enviando tudo para a gestão...")
         try {
-            // Prepare full form data
             const fullFormData = {
-                ...form.getValues(),
-                step2: travelIssued,
-                step3: data,
-                dealId // Explicitly pass dealId if we have it
+                ...step1Values,
+                step2,
+                step3,
+                dealId
             }
 
-            // 1. Submit to Bitrix (Create or Update)
             const response = await fetch('/api/bitrix/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -232,19 +254,16 @@ export function ColetaDadosForm() {
 
             if (response.ok || result.partialSuccess) {
                 const finalDealId = result.dealId || dealId
-
-                // 2. Generate and upload PDF
-                const pdfUrl = await generateAndUploadPDF("pdf-capture-area", fullFormData, form.getValues().email, (resolvedTheme as 'dark' | 'light') || 'dark')
+                const pdfUrl = await generateAndUploadPDF("pdf-capture-area", fullFormData, step1Values.email || "", (resolvedTheme as 'dark' | 'light') || 'dark')
 
                 if (pdfUrl && finalDealId) {
-                    // 3. Update with PDF URL
                     await fetch('/api/bitrix/update', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             dealId: finalDealId,
                             step: 3,
-                            data: { ...data, pdfUrl }
+                            data: { ...step3, pdfUrl }
                         }),
                     })
                 }
@@ -253,14 +272,30 @@ export function ColetaDadosForm() {
                 localStorage.removeItem(STORAGE_KEY)
                 setIsSuccess(true)
             } else {
-                toast.error("Ocorreu um erro ao processar seu envio. Por favor, tente novamente.", { id: toastId })
+                toast.error("Ocorreu um erro ao processar seu envio.", { id: toastId })
             }
         } catch (error) {
-            toast.error("Erro ao enviar seus dados. Por favor, tente novamente mais tarde.", { id: toastId })
+            toast.error("Erro ao enviar seus dados.", { id: toastId })
             console.error(error)
         } finally {
             setIsSubmitting(false)
         }
+    }
+
+    // Step 2 → Save locally, go to step 3
+    async function handleTravelIssuedNext(data: TravelIssuedData, skipToPage3: boolean) {
+        setTravelIssued(data)
+        saveTravelData(data)
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, currentStep: 3 }))
+        setCurrentStep(3)
+    }
+
+    // Step 3 → Final submission
+    async function handleTravelPlannedSubmit(data: TravelPlannedData) {
+        setTravelPlanned(data)
+        saveTravelData(travelIssued, data)
+        await handleFinalSubmit(form.getValues(), travelIssued, data)
     }
 
     if (isSuccess) {
@@ -351,422 +386,455 @@ export function ColetaDadosForm() {
                 <CardContent className="p-4 md:p-5 overflow-y-auto custom-scrollbar">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            {/* Identification, Contact & Management Details */}
-                            <div className="space-y-4">
-                                <h3 className="text-xs font-bold text-primary uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <ChevronRight className="w-3 h-3" />
-                                    Informações de Contato e Gestão
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="fullName"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Nome Completo</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="Seu nome completo" className="bg-background/40 h-11" autoComplete="name" {...field} />
-                                                </FormControl>
-                                                <FormMessage className="text-[10px]" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="phone"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">WhatsApp</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="(00) 00000-0000"
-                                                        className="bg-background/40 h-11"
-                                                        autoComplete="tel"
-                                                        {...field}
-                                                        onChange={(e) => handlePhoneChange(e, field.onChange)}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage className="text-[10px]" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">E-mail</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="seu@email.com" type="email" className="bg-background/40 h-11" autoComplete="email" {...field} />
-                                                </FormControl>
-                                                <FormMessage className="text-[10px]" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="responsavel"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Responsável</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="Nome do responsável" className="bg-background/40 h-11" {...field} />
-                                                </FormControl>
-                                                <FormMessage className="text-[10px]" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <div className="md:col-span-2">
-                                        <FormField
-                                            control={form.control}
-                                            name="comentario"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Comentário</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="Alguma observação importante?" className="bg-background/40 h-11" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage className="text-[10px]" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                </div>
+                            {/* Identification & Contact Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="fullName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Nome Completo</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Nome do Cliente" className="h-11 text-xs" {...field} />
+                                            </FormControl>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="phone"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">WhatsApp</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="(99) 99999-9999"
+                                                    className="h-11 text-xs"
+                                                    {...field}
+                                                    onChange={(e) => handlePhoneChange(e, field.onChange)}
+                                                />
+                                            </FormControl>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">E-mail</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="email@exemplo.com" className="h-11 text-xs" {...field} />
+                                            </FormControl>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
 
-                            {/* Cards Section */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-bold text-primary uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <CreditCard className="w-3 h-3" />
-                                        Dados dos Cartões
-                                    </h3>
-                                </div>
+                            {/* Management Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="responsavel"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Responsável</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Nome do Responsável" className="h-11 text-xs" {...field} />
+                                            </FormControl>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="tipoDemanda"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Tipo de Demanda <span className="text-primary">*</span></FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="h-11 text-xs">
+                                                        <SelectValue placeholder="Selecione a Demanda" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="SPA" className="text-xs">SPA</SelectItem>
+                                                    <SelectItem value="EMISSÃO" className="text-xs">EMISSÃO</SelectItem>
+                                                    <SelectItem value="SPA + EMISSÃO" className="text-xs">SPA + EMISSÃO</SelectItem>
+                                                    <SelectItem value="CARTÕES" className="text-xs">CARTÕES</SelectItem>
+                                                    <SelectItem value="OUTROS" className="text-xs">OUTROS</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
 
-                                <AnimatePresence mode="popLayout">
-                                    {fields.map((field, index) => {
-                                        const watchValues = form.watch(`cards.${index}`)
-                                        const watchCardBank = watchValues?.bank
-                                        const watchCardName = watchValues?.card
-                                        const watchBrand = watchValues?.brand
-                                        const watchCategory = watchValues?.category
-                                        const watchMonthlySpend = watchValues?.monthlySpend
-
-                                        const baseCardsList = watchCardBank && BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
-                                            ? Object.keys(BANK_DATA[watchCardBank as keyof typeof BANK_DATA].cards)
-                                            : []
-                                        const availableCardsList = [...baseCardsList, "Outro"]
-
-                                        const enabled = {
-                                            card: !!watchCardBank,
-                                            brand: !!watchCardName,
-                                            category: !!watchBrand,
-                                            monthlySpend: !!watchCategory,
-                                            annuityFree: !!watchMonthlySpend
-                                        }
-
-                                        return (
-                                            <motion.div
-                                                key={field.id}
-                                                initial={{ opacity: 0, x: -10 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: 10 }}
-                                                className="relative p-4 rounded-xl border border-primary/10 bg-primary/[0.02] space-y-4"
-                                            >
-                                                <div className="flex items-center justify-between border-b border-primary/5 pb-2">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
-                                                        Cartão {index + 1} | {getFormattedCardName(watchValues?.bank, watchValues?.card === "Outro" ? watchValues?.cardOther : watchValues?.card)}
-                                                    </span>
-                                                    {fields.length > 1 && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                                            onClick={() => remove(index)}
-                                                        >
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </Button>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex flex-col gap-4">
-                                                    {/* Line 1: Main data */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-2">
-                                                        {/* Bank Selection */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.bank`}
-                                                            render={({ field: bankField }) => (
-                                                                <FormItem>
-                                                                    <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Banco</FormLabel>
-                                                                    <Select onValueChange={(val) => {
-                                                                        bankField.onChange(val)
-                                                                        // Reset all dependent fields
-                                                                        form.setValue(`cards.${index}.card`, "")
-                                                                        form.setValue(`cards.${index}.brand`, "")
-                                                                        form.setValue(`cards.${index}.category`, "")
-                                                                        form.setValue(`cards.${index}.monthlySpend`, "")
-                                                                        form.setValue(`cards.${index}.annuityFree`, "")
-                                                                    }} value={bankField.value}>
-                                                                        <FormControl>
-                                                                            <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                <SelectValue placeholder="Selecione o Banco" />
-                                                                            </SelectTrigger>
-                                                                        </FormControl>
-                                                                        <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                            {Object.keys(BANK_DATA).sort((a, b) => {
-                                                                                if (a === 'Outro') return 1;
-                                                                                if (b === 'Outro') return -1;
-                                                                                return a.localeCompare(b, 'pt-BR');
-                                                                            }).map(bank => (
-                                                                                <SelectItem key={bank} value={bank} className="text-xs">{bank}</SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                    <FormMessage className="text-[8px]" />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-
-                                                        {/* Card Selection */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.card`}
-                                                            render={({ field: cardField }) => (
-                                                                <FormItem>
-                                                                    <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Cartão</FormLabel>
-                                                                    <Select
-                                                                        disabled={!enabled.card}
-                                                                        onValueChange={(val) => {
-                                                                            cardField.onChange(val)
-                                                                            if (watchCardBank && watchCardBank !== "Outro" && BANK_DATA[watchCardBank as keyof typeof BANK_DATA] && val !== "Outro") {
-                                                                                const bankInfo = BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
-                                                                                const cardInfo = bankInfo.cards[val as keyof typeof bankInfo.cards]
-                                                                                if (cardInfo) {
-                                                                                    form.setValue(`cards.${index}.brand`, cardInfo.brand)
-                                                                                    form.setValue(`cards.${index}.category`, cardInfo.category)
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        value={cardField.value}
-                                                                    >
-                                                                        <FormControl>
-                                                                            <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                <SelectValue placeholder="Cartão" />
-                                                                            </SelectTrigger>
-                                                                        </FormControl>
-                                                                        <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                            {availableCardsList.map(card => (
-                                                                                <SelectItem key={card} value={card} className="text-xs">{card}</SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                    <FormMessage className="text-[8px]" />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-
-                                                        {/* Brand Selection */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.brand`}
-                                                            render={({ field: brandField }) => {
-                                                                const watchCard = form.watch(`cards.${index}.card`)
-                                                                const watchBank = form.watch(`cards.${index}.bank`)
-
-                                                                const getAvailableBrands = () => {
-                                                                    const defaultBrands = ["Visa", "Mastercard", "Amex", "Elo", "Centurion", "Outro"]
-                                                                    if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
-                                                                        return defaultBrands
-                                                                    }
-                                                                    const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
-                                                                    if (!bankInfo) return defaultBrands
-                                                                    const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
-                                                                    if (!cardInfo || !cardInfo.brand) return defaultBrands
-
-                                                                    const brands = (cardInfo.brand as string).split("/").map(b => b.trim())
-                                                                    if (!brands.includes("Outro")) brands.push("Outro")
-                                                                    return brands
-                                                                }
-
-                                                                const availableBrands = getAvailableBrands()
-
-                                                                return (
-                                                                    <FormItem>
-                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Bandeira</FormLabel>
-                                                                        <Select
-                                                                            disabled={!enabled.brand}
-                                                                            onValueChange={brandField.onChange}
-                                                                            value={brandField.value}
-                                                                        >
-                                                                            <FormControl>
-                                                                                <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                    <SelectValue placeholder="Bandeira" />
-                                                                                </SelectTrigger>
-                                                                            </FormControl>
-                                                                            <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                {availableBrands.map(b => (
-                                                                                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                        <FormMessage className="text-[8px]" />
-                                                                    </FormItem>
-                                                                )
-                                                            }}
-                                                        />
-
-                                                        {/* Category Selection */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.category`}
-                                                            render={({ field: catField }) => {
-                                                                const watchCard = form.watch(`cards.${index}.card`)
-                                                                const watchBank = form.watch(`cards.${index}.bank`)
-
-                                                                const getAvailableCategories = () => {
-                                                                    const defaultCategories = ["Standard", "Gold", "Platinum", "Black", "Infinite", "Signature", "Centurion", "Nanquim", "Outro"]
-                                                                    if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
-                                                                        return defaultCategories
-                                                                    }
-                                                                    const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
-                                                                    if (!bankInfo) return defaultCategories
-                                                                    const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
-                                                                    if (!cardInfo || !cardInfo.category) return defaultCategories
-
-                                                                    const categories = (cardInfo.category as string).split("/").map(c => c.trim())
-                                                                    if (!categories.includes("Outro")) categories.push("Outro")
-                                                                    return categories
-                                                                }
-
-                                                                const availableCategories = getAvailableCategories()
-
-                                                                return (
-                                                                    <FormItem>
-                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Categoria</FormLabel>
-                                                                        <Select
-                                                                            disabled={!enabled.category}
-                                                                            onValueChange={catField.onChange}
-                                                                            value={catField.value}
-                                                                        >
-                                                                            <FormControl>
-                                                                                <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                    <SelectValue placeholder="Categoria" />
-                                                                                </SelectTrigger>
-                                                                            </FormControl>
-                                                                            <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                {availableCategories.map(c => (
-                                                                                    <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                        <FormMessage className="text-[8px]" />
-                                                                    </FormItem>
-                                                                )
-                                                            }}
-                                                        />
-                                                    </div>
-
-                                                    {/* Line 2: Financial data */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                        {/* Monthly Spend */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.monthlySpend`}
-                                                            render={({ field: spendField }) => (
-                                                                <FormItem>
-                                                                    <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Gasto Médio</FormLabel>
-                                                                    <FormControl>
-                                                                        <Input
-                                                                            disabled={!enabled.monthlySpend}
-                                                                            placeholder="Gasto Médio Mensal"
-                                                                            className="bg-background/40 h-11 text-xs px-3"
-                                                                            {...spendField}
-                                                                            onChange={(e) => handleCurrencyChange(e, spendField.onChange)}
-                                                                        />
-                                                                    </FormControl>
-                                                                    <FormMessage className="text-[8px]" />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-
-                                                        {/* Annuity Free Selection */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`cards.${index}.annuityFree`}
-                                                            render={({ field: annuityField }) => (
-                                                                <FormItem>
-                                                                    <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Anuidade</FormLabel>
-                                                                    <Select
-                                                                        disabled={!enabled.annuityFree}
-                                                                        onValueChange={annuityField.onChange}
-                                                                        value={annuityField.value}
-                                                                    >
-                                                                        <FormControl>
-                                                                            <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                <SelectValue placeholder="Paga Anuidade?" />
-                                                                            </SelectTrigger>
-                                                                        </FormControl>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="SIM" className="text-xs">SIM (Paga)</SelectItem>
-                                                                            <SelectItem value="NÃO" className="text-xs">NÃO (Livre)</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                    <FormMessage className="text-[8px]" />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Other Inputs */}
-                                                <AnimatePresence>
-                                                    {(watchCardBank === "Outro" || watchCardName === "Outro" || watchBrand === "Outro" || watchCategory === "Outro") && (
-                                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-primary/5 mt-2">
-                                                            {watchCardBank === "Outro" && (
-                                                                <FormField control={form.control} name={`cards.${index}.bankOther`} render={({ field }) => (
-                                                                    <Input placeholder="Qual o Banco?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                )} />
-                                                            )}
-                                                            {watchCardName === "Outro" && (
-                                                                <FormField control={form.control} name={`cards.${index}.cardOther`} render={({ field }) => (
-                                                                    <Input placeholder="Qual o Cartão?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                )} />
-                                                            )}
-                                                            {watchBrand === "Outro" && (
-                                                                <FormField control={form.control} name={`cards.${index}.brandOther`} render={({ field }) => (
-                                                                    <Input placeholder="Qual a Bandeira?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                )} />
-                                                            )}
-                                                            {watchCategory === "Outro" && (
-                                                                <FormField control={form.control} name={`cards.${index}.categoryOther`} render={({ field }) => (
-                                                                    <Input placeholder="Qual a Categoria?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                )} />
-                                                            )}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </motion.div>
-                                        )
-                                    })}
-                                </AnimatePresence>
-
-                                {fields.length < 5 && (
-                                    <div className="flex justify-center pt-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 dark:text-white dark:hover:text-[#22c55e] text-slate-900 hover:text-[#e34248] transition-all rounded-lg font-bold text-xs bg-transparent hover:bg-transparent"
-                                            onClick={() => append({ bank: "", card: "", brand: "", category: "", monthlySpend: "", annuityFree: "" })}
-                                        >
-                                            <Plus className="w-4 h-4 mr-2" />
-                                            ADICIONAR NOVO CARTÃO
-                                        </Button>
-                                    </div>
+                            <FormField
+                                control={form.control}
+                                name="comentario"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Comentário / Observações</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Informações adicionais para a gestão..." className="min-h-[80px] text-xs" {...field} />
+                                        </FormControl>
+                                        <FormMessage className="text-[8px]" />
+                                    </FormItem>
                                 )}
-                            </div>
+                            />
+
+                            {/* Cards Section - Hidden for Early Stages */}
+                            {!isEarlyStage && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+                                            <CreditCard className="w-3 h-3" />
+                                            Coleta de Informações
+                                        </h3>
+                                    </div>
+
+                                    <AnimatePresence mode="popLayout">
+                                        {fields.map((field, index) => {
+                                            const watchValues = form.watch(`cards.${index}`)
+                                            const watchCardBank = watchValues?.bank
+                                            const watchCardName = watchValues?.card
+                                            const watchBrand = watchValues?.brand
+                                            const watchCategory = watchValues?.category
+                                            const watchMonthlySpend = watchValues?.monthlySpend
+
+                                            const baseCardsList = watchCardBank && BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
+                                                ? Object.keys(BANK_DATA[watchCardBank as keyof typeof BANK_DATA].cards)
+                                                : []
+                                            const availableCardsList = [...baseCardsList, "Outro"]
+
+                                            const enabled = {
+                                                card: !!watchCardBank,
+                                                brand: !!watchCardName,
+                                                category: !!watchBrand,
+                                                monthlySpend: !!watchCategory,
+                                                annuityFree: !!watchMonthlySpend
+                                            }
+
+                                            return (
+                                                <motion.div
+                                                    key={field.id}
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 10 }}
+                                                    className="relative p-4 rounded-xl border border-primary/10 bg-primary/[0.02] space-y-4"
+                                                >
+                                                    <div className="flex items-center justify-between border-b border-primary/5 pb-2">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
+                                                            Cartão {index + 1} | {getFormattedCardName(watchValues?.bank, watchValues?.card === "Outro" ? watchValues?.cardOther : watchValues?.card)}
+                                                        </span>
+                                                        {fields.length > 1 && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                                                onClick={() => remove(index)}
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-4">
+                                                        {/* Line 1: Main data */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-2">
+                                                            {/* Bank Selection */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.bank`}
+                                                                render={({ field: bankField }) => (
+                                                                    <FormItem>
+                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Banco</FormLabel>
+                                                                        <Select onValueChange={(val) => {
+                                                                            bankField.onChange(val)
+                                                                            // Reset all dependent fields
+                                                                            form.setValue(`cards.${index}.card`, "")
+                                                                            form.setValue(`cards.${index}.brand`, "")
+                                                                            form.setValue(`cards.${index}.category`, "")
+                                                                            form.setValue(`cards.${index}.monthlySpend`, "")
+                                                                            form.setValue(`cards.${index}.annuityFree`, "")
+                                                                        }} value={bankField.value}>
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="bg-background/40 h-11 text-xs">
+                                                                                    <SelectValue placeholder="Selecione o Banco" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
+                                                                                {Object.keys(BANK_DATA).sort((a, b) => {
+                                                                                    if (a === 'Outro') return 1;
+                                                                                    if (b === 'Outro') return -1;
+                                                                                    return a.localeCompare(b, 'pt-BR');
+                                                                                }).map(bank => (
+                                                                                    <SelectItem key={bank} value={bank} className="text-xs">{bank}</SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage className="text-[8px]" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            {/* Card Selection */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.card`}
+                                                                render={({ field: cardField }) => (
+                                                                    <FormItem>
+                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Cartão</FormLabel>
+                                                                        <Select
+                                                                            disabled={!enabled.card}
+                                                                            onValueChange={(val) => {
+                                                                                cardField.onChange(val)
+                                                                                if (watchCardBank && watchCardBank !== "Outro" && BANK_DATA[watchCardBank as keyof typeof BANK_DATA] && val !== "Outro") {
+                                                                                    const bankInfo = BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
+                                                                                    const cardInfo = bankInfo.cards[val as keyof typeof bankInfo.cards]
+                                                                                    if (cardInfo) {
+                                                                                        form.setValue(`cards.${index}.brand`, cardInfo.brand)
+                                                                                        form.setValue(`cards.${index}.category`, cardInfo.category)
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            value={cardField.value}
+                                                                        >
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="bg-background/40 h-11 text-xs">
+                                                                                    <SelectValue placeholder="Cartão" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
+                                                                                {availableCardsList.map(card => (
+                                                                                    <SelectItem key={card} value={card} className="text-xs">{card}</SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage className="text-[8px]" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            {/* Brand Selection */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.brand`}
+                                                                render={({ field: brandField }) => {
+                                                                    const watchCard = form.watch(`cards.${index}.card`)
+                                                                    const watchBank = form.watch(`cards.${index}.bank`)
+
+                                                                    const getAvailableBrands = () => {
+                                                                        const defaultBrands = ["Visa", "Mastercard", "Amex", "Elo", "Centurion", "Outro"]
+                                                                        if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
+                                                                            return defaultBrands
+                                                                        }
+                                                                        const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
+                                                                        if (!bankInfo) return defaultBrands
+                                                                        const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
+                                                                        if (!cardInfo || !cardInfo.brand) return defaultBrands
+
+                                                                        const brands = (cardInfo.brand as string).split("/").map(b => b.trim())
+                                                                        if (!brands.includes("Outro")) brands.push("Outro")
+                                                                        return brands
+                                                                    }
+
+                                                                    const availableBrands = getAvailableBrands()
+
+                                                                    return (
+                                                                        <FormItem>
+                                                                            <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Bandeira</FormLabel>
+                                                                            <Select
+                                                                                disabled={!enabled.brand}
+                                                                                onValueChange={brandField.onChange}
+                                                                                value={brandField.value}
+                                                                            >
+                                                                                <FormControl>
+                                                                                    <SelectTrigger className="bg-background/40 h-11 text-xs">
+                                                                                        <SelectValue placeholder="Bandeira" />
+                                                                                    </SelectTrigger>
+                                                                                </FormControl>
+                                                                                <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
+                                                                                    {availableBrands.map(b => (
+                                                                                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                            <FormMessage className="text-[8px]" />
+                                                                        </FormItem>
+                                                                    )
+                                                                }}
+                                                            />
+
+                                                            {/* Category Selection */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.category`}
+                                                                render={({ field: catField }) => {
+                                                                    const watchCard = form.watch(`cards.${index}.card`)
+                                                                    const watchBank = form.watch(`cards.${index}.bank`)
+
+                                                                    const getAvailableCategories = () => {
+                                                                        const defaultCategories = ["Standard", "Gold", "Platinum", "Black", "Infinite", "Signature", "Centurion", "Nanquim", "Outro"]
+                                                                        if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
+                                                                            return defaultCategories
+                                                                        }
+                                                                        const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
+                                                                        if (!bankInfo) return defaultCategories
+                                                                        const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
+                                                                        if (!cardInfo || !cardInfo.category) return defaultCategories
+
+                                                                        const categories = (cardInfo.category as string).split("/").map(c => c.trim())
+                                                                        if (!categories.includes("Outro")) categories.push("Outro")
+                                                                        return categories
+                                                                    }
+
+                                                                    const availableCategories = getAvailableCategories()
+
+                                                                    return (
+                                                                        <FormItem>
+                                                                            <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Categoria</FormLabel>
+                                                                            <Select
+                                                                                disabled={!enabled.category}
+                                                                                onValueChange={catField.onChange}
+                                                                                value={catField.value}
+                                                                            >
+                                                                                <FormControl>
+                                                                                    <SelectTrigger className="bg-background/40 h-11 text-xs">
+                                                                                        <SelectValue placeholder="Categoria" />
+                                                                                    </SelectTrigger>
+                                                                                </FormControl>
+                                                                                <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
+                                                                                    {availableCategories.map(c => (
+                                                                                        <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                            <FormMessage className="text-[8px]" />
+                                                                        </FormItem>
+                                                                    )
+                                                                }}
+                                                            />
+                                                        </div>
+
+                                                        {/* Line 2: Financial data */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                            {/* Monthly Spend */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.monthlySpend`}
+                                                                render={({ field: spendField }) => (
+                                                                    <FormItem>
+                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Gasto Médio</FormLabel>
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                disabled={!enabled.monthlySpend}
+                                                                                placeholder="Gasto Médio Mensal"
+                                                                                className="bg-background/40 h-11 text-xs px-3"
+                                                                                {...spendField}
+                                                                                onChange={(e) => handleCurrencyChange(e, spendField.onChange)}
+                                                                            />
+                                                                        </FormControl>
+                                                                        <FormMessage className="text-[8px]" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            {/* Annuity Free Selection */}
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`cards.${index}.annuityFree`}
+                                                                render={({ field: annuityField }) => (
+                                                                    <FormItem>
+                                                                        <FormLabel className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Anuidade</FormLabel>
+                                                                        <Select
+                                                                            disabled={!enabled.annuityFree}
+                                                                            onValueChange={annuityField.onChange}
+                                                                            value={annuityField.value}
+                                                                        >
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="bg-background/40 h-11 text-xs">
+                                                                                    <SelectValue placeholder="Paga Anuidade?" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="SIM" className="text-xs">SIM (Paga)</SelectItem>
+                                                                                <SelectItem value="NÃO" className="text-xs">NÃO (Livre)</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage className="text-[8px]" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Other Inputs */}
+                                                    <AnimatePresence>
+                                                        {(watchCardBank === "Outro" || watchCardName === "Outro" || watchBrand === "Outro" || watchCategory === "Outro") && (
+                                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-primary/5 mt-2">
+                                                                {watchCardBank === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.bankOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual o Banco?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchCardName === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.cardOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual o Cartão?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchBrand === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.brandOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual a Bandeira?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchCategory === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.categoryOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual a Categoria?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </motion.div>
+                                            )
+                                        })}
+                                    </AnimatePresence>
+
+                                    {fields.length < 5 && (
+                                        <div className="flex justify-center pt-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 dark:text-white dark:hover:text-[#22c55e] text-slate-900 hover:text-[#e34248] transition-all rounded-lg font-bold text-xs bg-transparent hover:bg-transparent"
+                                                onClick={() => append({
+                                                    bank: "",
+                                                    bankOther: "",
+                                                    card: "",
+                                                    cardOther: "",
+                                                    brand: "",
+                                                    brandOther: "",
+                                                    category: "",
+                                                    categoryOther: "",
+                                                    monthlySpend: "",
+                                                    annuityFree: ""
+                                                })}
+                                            >
+                                                <Plus className="w-4 h-4 mr-2" />
+                                                ADICIONAR NOVO CARTÃO
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
 
                             <Button
@@ -776,7 +844,7 @@ export function ColetaDadosForm() {
                                 className="w-full h-14 text-sm font-bold border-border hover:bg-accent active:scale-[0.98] transition-all rounded-lg gap-2"
                             >
                                 {isSubmitting ? <Loader2 className="animate-spin w-4 h-4" /> : null}
-                                {isSubmitting ? "PROCESSANDO..." : "PRÓXIMO 1/3"}
+                                {isSubmitting ? "PROCESSANDO..." : isEarlyStage ? "ENVIAR PARA GESTÃO" : "PRÓXIMO 1/3"}
                                 {!isSubmitting && <ChevronRight className="w-4 h-4" />}
                             </Button>
                         </form>
@@ -794,19 +862,22 @@ export function ColetaDadosForm() {
                         isSubmitting={isSubmitting}
                     />
                 </CardContent>
-            )}
+            )
+            }
 
             {/* Step 3 - Planned Travel */}
-            {currentStep === 3 && (
-                <CardContent className="flex-1 overflow-y-auto p-4 md:p-6">
-                    <TravelPlannedForm
-                        initialData={travelPlanned}
-                        onSubmit={handleTravelPlannedSubmit}
-                        onBack={() => setCurrentStep(2)}
-                        isSubmitting={isSubmitting}
-                    />
-                </CardContent>
-            )}
+            {
+                currentStep === 3 && (
+                    <CardContent className="flex-1 overflow-y-auto p-4 md:p-6">
+                        <TravelPlannedForm
+                            initialData={travelPlanned}
+                            onSubmit={handleTravelPlannedSubmit}
+                            onBack={() => setCurrentStep(2)}
+                            isSubmitting={isSubmitting}
+                        />
+                    </CardContent>
+                )
+            }
         </Card>
     )
 }

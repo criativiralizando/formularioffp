@@ -50,69 +50,70 @@ export async function POST(request: Request) {
         };
 
         // Identification & Management (PRIORITY)
-        assignField('FPP_NOME', data.fullName);
-        assignField('FPP_WHATSAPP', data.phone);
-        assignField('FPP_EMAIL', data.email);
-        assignField('FPP_RESPONSAVEL', data.responsavel);
-        assignField('FPP_COMENTARIO', data.comentario);
+        assignField('NOME', data.fullName);
+        assignField('TIPO_DEMANDA', data.tipoDemanda);
+        assignField('WHATSAPP', data.phone);
+        assignField('EMAIL', data.email);
+        assignField('RESPONSAVEL', data.responsavel);
+        assignField('COMENTARIO', data.comentario);
 
         // Cards (up to 5)
         (data.cards || []).forEach((c: any, i: number) => {
             const index = i + 1;
             if (index > 5) return;
-            assignField(`FPP_CARD_${index}_BANK` as any, c.bank === 'Outro' ? c.bankOther : c.bank);
-            assignField(`FPP_CARD_${index}_NAME` as any, c.card === 'Outro' ? c.cardOther : c.card);
-            assignField(`FPP_CARD_${index}_BRAND` as any, c.brand === 'Outro' ? c.brandOther : c.brand);
-            assignField(`FPP_CARD_${index}_CATEGORY` as any, c.category === 'Outro' ? c.categoryOther : c.category);
-            assignField(`FPP_CARD_${index}_SPEND` as any, c.monthlySpend);
-            assignField(`FPP_CARD_${index}_ANNUITY` as any, c.annuityFree);
+            assignField(`CARD_${index}_BANK` as any, c.bank === 'Outro' ? c.bankOther : c.bank);
+            assignField(`CARD_${index}_NAME` as any, c.card === 'Outro' ? c.cardOther : c.card);
+            assignField(`CARD_${index}_BRAND` as any, c.brand === 'Outro' ? c.brandOther : c.brand);
+            assignField(`CARD_${index}_CATEGORY` as any, c.category === 'Outro' ? c.categoryOther : c.category);
+            assignField(`CARD_${index}_SPEND` as any, c.monthlySpend);
+            assignField(`CARD_${index}_ANNUITY` as any, c.annuityFree);
         });
 
         // Issued Trips
         const step2 = data.step2 || {};
-        assignField('FPP_HAS_ISSUED', step2.hasIssuedTrips);
+        assignField('HAS_ISSUED', step2.hasIssuedTrips);
         (step2.trips || []).forEach((t: any, i: number) => {
             const index = i + 1;
             if (index > 5) return;
-            assignField(`FPP_ISSTRIP_${index}_DEP` as any, t.departureDate);
-            assignField(`FPP_ISSTRIP_${index}_RET` as any, t.returnDate);
-            assignField(`FPP_ISSTRIP_${index}_COUNTRY` as any, t.country);
-            assignField(`FPP_ISSTRIP_${index}_CITY` as any, t.city);
-            assignField(`FPP_ISSTRIP_${index}_MULTIPLE` as any, t.multipleDestinations);
-            assignField(`FPP_ISSTRIP_${index}_EXTRA` as any, t.extraDestinations);
-            assignField(`FPP_ISSTRIP_${index}_ADULTS` as any, t.adults);
-            assignField(`FPP_ISSTRIP_${index}_CHILD` as any, t.children);
-            assignField(`FPP_ISSTRIP_${index}_BABIES` as any, t.babies);
-            assignField(`FPP_ISSTRIP_${index}_REASON` as any, t.travelReason);
-            assignField(`FPP_ISSTRIP_${index}_REASON_OTH` as any, t.travelReasonOther);
-            assignField(`FPP_ISSTRIP_${index}_SERVICES` as any, t.services);
-            assignField(`FPP_ISSTRIP_${index}_UNRES` as any, t.unreservedServices);
-            assignField(`FPP_ISSTRIP_${index}_UNRES_OTH` as any, t.unreservedOther);
-            assignField(`FPP_ISSTRIP_${index}_BUDGET` as any, t.budget);
-            assignField(`FPP_ISSTRIP_${index}_TEAM_OPT` as any, t.teamOptimize);
-            assignField(`FPP_ISSTRIP_${index}_NOTES` as any, t.travelNotes);
+            assignField(`ISSTRIP_${index}_DEP` as any, t.departureDate);
+            assignField(`ISSTRIP_${index}_RET` as any, t.returnDate);
+            assignField(`ISSTRIP_${index}_COUNTRY` as any, t.country);
+            assignField(`ISSTRIP_${index}_CITY` as any, t.city);
+            assignField(`ISSTRIP_${index}_MULTIPLE` as any, t.multipleDestinations);
+            assignField(`ISSTRIP_${index}_EXTRA` as any, t.extraDestinations);
+            assignField(`ISSTRIP_${index}_ADULTS` as any, t.adults);
+            assignField(`ISSTRIP_${index}_CHILD` as any, t.children);
+            assignField(`ISSTRIP_${index}_BABIES` as any, t.babies);
+            assignField(`ISSTRIP_${index}_REASON` as any, t.travelReason);
+            assignField(`ISSTRIP_${index}_REASON_OTH` as any, t.travelReasonOther);
+            assignField(`ISSTRIP_${index}_SERVICES` as any, t.services);
+            assignField(`ISSTRIP_${index}_UNRES` as any, t.unreservedServices);
+            assignField(`ISSTRIP_${index}_UNRES_OTH` as any, t.unreservedOther);
+            assignField(`ISSTRIP_${index}_BUDGET` as any, t.budget);
+            assignField(`ISSTRIP_${index}_TEAM_OPT` as any, t.teamOptimize);
+            assignField(`ISSTRIP_${index}_NOTES` as any, t.travelNotes);
         });
 
         // Planned Trips
         const step3 = data.step3 || {};
-        assignField('FPP_HAS_PLANNED', step3.hasPlannedTrip);
-        assignField('FPP_PLAN_COUNTRY', step3.country);
-        assignField('FPP_PLAN_CITY', step3.city);
-        assignField('FPP_PLAN_MULTIPLE', step3.multipleDestinations);
-        assignField('FPP_PLAN_EXTRA', step3.extraDestinations);
-        assignField('FPP_PLAN_TIME', step3.timeframe);
-        assignField('FPP_PLAN_DEP', step3.plannedDepartureDate);
-        assignField('FPP_PLAN_RET', step3.plannedReturnDate);
-        assignField('FPP_PLAN_ADULTS', step3.adults);
-        assignField('FPP_PLAN_CHILD', step3.children);
-        assignField('FPP_PLAN_BABIES', step3.babies);
-        assignField('FPP_PLAN_REASON', step3.travelReason);
-        assignField('FPP_PLAN_REASON_OTH', step3.travelReasonOther);
-        assignField('FPP_PLAN_SVCS', step3.plannedServices);
-        assignField('FPP_PLAN_SVCS_OTH', step3.plannedServicesOther);
-        assignField('FPP_PLAN_BUDGET', step3.budget);
-        assignField('FPP_PLAN_HELP', step3.teamHelp);
-        assignField('FPP_PLAN_HELP_NOTES', step3.teamHelpNotes);
+        assignField('HAS_PLANNED', step3.hasPlannedTrip);
+        assignField('PLAN_COUNTRY', step3.country);
+        assignField('PLAN_CITY', step3.city);
+        assignField('PLAN_MULTIPLE', step3.multipleDestinations);
+        assignField('PLAN_EXTRA', step3.extraDestinations);
+        assignField('PLAN_TIME', step3.timeframe);
+        assignField('PLAN_DEP', step3.plannedDepartureDate);
+        assignField('PLAN_RET', step3.plannedReturnDate);
+        assignField('PLAN_ADULTS', step3.adults);
+        assignField('PLAN_CHILD', step3.children);
+        assignField('PLAN_BABIES', step3.babies);
+        assignField('PLAN_REASON', step3.travelReason);
+        assignField('PLAN_REASON_OTH', step3.travelReasonOther);
+        assignField('PLAN_SVCS', step3.plannedServices);
+        assignField('PLAN_SVCS_OTH', step3.plannedServicesOther);
+        assignField('PLAN_BUDGET', step3.budget);
+        assignField('PLAN_HELP', step3.teamHelp);
+        assignField('PLAN_HELP_NOTES', step3.teamHelpNotes);
 
         // ─── 3. Build Comments HTML (Fallack / Overview) ────────────────────────
         let cardsHtml = '';
