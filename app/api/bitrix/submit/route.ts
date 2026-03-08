@@ -1,33 +1,7 @@
 import { NextResponse } from 'next/server';
+import fieldMap from '@/lib/bitrix-field-map.json';
 
 const BITRIX_WEBHOOK_URL = "https://fpp.bitrix24.com.br/rest/1058/145rhig7cpmobxni";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CUSTOM FIELD MAPPING
-// These UF_ codes correspond to custom fields in the Bitrix24 CRM.
-// Until a field is created in Bitrix, leave its value as undefined/null —
-// the API will simply ignore it. When ready to sync each field, map it below.
-// ─────────────────────────────────────────────────────────────────────────────
-interface CardFieldMap {
-    bank: string | undefined;         // UF_CRM_CARD_BANK
-    card: string | undefined;         // UF_CRM_CARD_NAME
-    brand: string | undefined;        // UF_CRM_CARD_BRAND
-    category: string | undefined;     // UF_CRM_CARD_CATEGORY
-    monthlySpend: string | undefined; // UF_CRM_CARD_SPEND
-    annuityFree: string | undefined;  // UF_CRM_CARD_ANNUITY
-}
-
-function buildCardCustomFields(card: CardFieldMap, index: number): Record<string, string | undefined> {
-    const i = index + 1; // 1-indexed suffix for field names
-    return {
-        // [`UF_CRM_CARD${i}_BANK`]: card.bank,       // ← Uncomment after field creation
-        // [`UF_CRM_CARD${i}_NAME`]: card.card,
-        // [`UF_CRM_CARD${i}_BRAND`]: card.brand,
-        // [`UF_CRM_CARD${i}_CATEGORY`]: card.category,
-        // [`UF_CRM_CARD${i}_SPEND`]: card.monthlySpend,
-        // [`UF_CRM_CARD${i}_ANNUITY`]: card.annuityFree,
-    };
-}
 
 export async function POST(request: Request) {
     try {
@@ -61,42 +35,99 @@ export async function POST(request: Request) {
             console.error('Contact creation failed (non-fatal):', e);
         }
 
-        // ─── 2. Build Comments HTML ──────────────────────────────────────────────
-        let cardsHtml = '';
-        (data.cards || []).forEach((card: Record<string, string>, index: number) => {
-            const bank = card.bank === 'Outro' ? card.bankOther : card.bank;
-            const cardName = card.card === 'Outro' ? card.cardOther : card.card;
-            const brand = card.brand === 'Outro' ? card.brandOther : card.brand;
-            const category = card.category === 'Outro' ? card.categoryOther : card.category;
-            cardsHtml += `
-        <br/><b>CARTÃO ${index + 1}</b><br/>
-        <b>Banco:</b> ${bank}<br/>
-        <b>Cartão:</b> ${cardName}<br/>
-        <b>Bandeira:</b> ${brand}<br/>
-        <b>Categoria:</b> ${category}<br/>
-        <b>Gasto Mensal:</b> ${card.monthlySpend}<br/>
-        <b>Anuidade:</b> ${card.annuityFree}<br/>
-      `;
+        // ─── 2. Build Deal Custom Fields ─────────────────────────────────────────
+        const customFields: Record<string, string | undefined> = {};
+
+        // Helper to safely assign if field exists in map
+        const assignField = (key: keyof typeof fieldMap, value: any) => {
+            const bitrixKey = fieldMap[key];
+            if (bitrixKey && value !== undefined && value !== null && value !== '') {
+                customFields[bitrixKey] = Array.isArray(value) ? value.join(', ') : String(value);
+            }
+        };
+
+        // Personal Info
+        assignField('FPP_NOME', data.fullName);
+        assignField('FPP_WHATSAPP', data.phone);
+        assignField('FPP_EMAIL', data.email);
+
+        // Cards (up to 5)
+        (data.cards || []).forEach((c: any, i: number) => {
+            const index = i + 1;
+            if (index > 5) return;
+            assignField(`FPP_CARD_${index}_BANK` as keyof typeof fieldMap, c.bank === 'Outro' ? c.bankOther : c.bank);
+            assignField(`FPP_CARD_${index}_NAME` as keyof typeof fieldMap, c.card === 'Outro' ? c.cardOther : c.card);
+            assignField(`FPP_CARD_${index}_BRAND` as keyof typeof fieldMap, c.brand === 'Outro' ? c.brandOther : c.brand);
+            assignField(`FPP_CARD_${index}_CATEGORY` as keyof typeof fieldMap, c.category === 'Outro' ? c.categoryOther : c.category);
+            assignField(`FPP_CARD_${index}_SPEND` as keyof typeof fieldMap, c.monthlySpend);
+            assignField(`FPP_CARD_${index}_ANNUITY` as keyof typeof fieldMap, c.annuityFree);
         });
 
+        // Issued Trips
+        assignField('FPP_HAS_ISSUED', data.travelIssued?.hasIssuedTrips);
+        (data.travelIssued?.trips || []).forEach((t: any, i: number) => {
+            const index = i + 1;
+            if (index > 5) return;
+            assignField(`FPP_ISSTRIP_${index}_DEP` as keyof typeof fieldMap, t.departureDate);
+            assignField(`FPP_ISSTRIP_${index}_RET` as keyof typeof fieldMap, t.returnDate);
+            assignField(`FPP_ISSTRIP_${index}_COUNTRY` as keyof typeof fieldMap, t.country);
+            assignField(`FPP_ISSTRIP_${index}_CITY` as keyof typeof fieldMap, t.city);
+            assignField(`FPP_ISSTRIP_${index}_MULTIPLE` as keyof typeof fieldMap, t.multipleDestinations);
+            assignField(`FPP_ISSTRIP_${index}_EXTRA` as keyof typeof fieldMap, t.extraDestinations);
+            assignField(`FPP_ISSTRIP_${index}_ADULTS` as keyof typeof fieldMap, t.adults);
+            assignField(`FPP_ISSTRIP_${index}_CHILD` as keyof typeof fieldMap, t.children);
+            assignField(`FPP_ISSTRIP_${index}_BABIES` as keyof typeof fieldMap, t.babies);
+            assignField(`FPP_ISSTRIP_${index}_REASON` as keyof typeof fieldMap, t.travelReason);
+            assignField(`FPP_ISSTRIP_${index}_REASON_OTH` as keyof typeof fieldMap, t.travelReasonOther);
+            assignField(`FPP_ISSTRIP_${index}_SERVICES` as keyof typeof fieldMap, t.services);
+            assignField(`FPP_ISSTRIP_${index}_UNRES` as keyof typeof fieldMap, t.unreservedServices);
+            assignField(`FPP_ISSTRIP_${index}_UNRES_OTH` as keyof typeof fieldMap, t.unreservedOther);
+            assignField(`FPP_ISSTRIP_${index}_BUDGET` as keyof typeof fieldMap, t.budget);
+            assignField(`FPP_ISSTRIP_${index}_TEAM_OPT` as keyof typeof fieldMap, t.teamOptimize);
+            assignField(`FPP_ISSTRIP_${index}_NOTES` as keyof typeof fieldMap, t.travelNotes);
+        });
+
+        // Planned Trips
+        assignField('FPP_HAS_PLANNED', data.travelPlanned?.hasPlannedTrip);
+        assignField('FPP_PLAN_COUNTRY', data.travelPlanned?.country);
+        assignField('FPP_PLAN_CITY', data.travelPlanned?.city);
+        assignField('FPP_PLAN_MULTIPLE', data.travelPlanned?.multipleDestinations);
+        assignField('FPP_PLAN_EXTRA', data.travelPlanned?.extraDestinations);
+        assignField('FPP_PLAN_TIME', data.travelPlanned?.timeframe);
+        assignField('FPP_PLAN_DEP', data.travelPlanned?.plannedDepartureDate);
+        assignField('FPP_PLAN_RET', data.travelPlanned?.plannedReturnDate);
+        assignField('FPP_PLAN_ADULTS', data.travelPlanned?.adults);
+        assignField('FPP_PLAN_CHILD', data.travelPlanned?.children);
+        assignField('FPP_PLAN_BABIES', data.travelPlanned?.babies);
+        assignField('FPP_PLAN_REASON', data.travelPlanned?.travelReason);
+        assignField('FPP_PLAN_REASON_OTH', data.travelPlanned?.travelReasonOther);
+        assignField('FPP_PLAN_SVCS', data.travelPlanned?.plannedServices);
+        assignField('FPP_PLAN_SVCS_OTH', data.travelPlanned?.plannedServicesOther);
+        assignField('FPP_PLAN_BUDGET', data.travelPlanned?.budget);
+        assignField('FPP_PLAN_HELP', data.travelPlanned?.teamHelp);
+        assignField('FPP_PLAN_HELP_NOTES', data.travelPlanned?.teamHelpNotes);
+
+        // ─── 3. Build Comments HTML (Fallback / Overview) ────────────────────────
+        let cardsHtml = '';
+        (data.cards || []).forEach((c: any, index: number) => {
+            cardsHtml += `
+        <br/><b>CARTÃO ${index + 1}</b><br/>
+        <b>Banco:</b> ${c.bank === 'Outro' ? c.bankOther : c.bank}<br/>
+        <b>Cartão:</b> ${c.card === 'Outro' ? c.cardOther : c.card}<br/>
+        <b>Bandeira:</b> ${c.brand === 'Outro' ? c.brandOther : c.brand}<br/>
+        <b>Categoria:</b> ${c.category === 'Outro' ? c.categoryOther : c.category}<br/>
+        <b>Gasto Mensal:</b> ${c.monthlySpend}<br/>
+        <b>Anuidade:</b> ${c.annuityFree}<br/>
+      `;
+        });
         const commentsHtml = `
-      <b>COLETA DE DADOS FPP — PÁGINA 1/3</b><br/>
+      <b>COLETA DE DADOS FPP</b><br/>
       <b>Nome:</b> ${data.fullName}<br/>
       <b>WhatsApp:</b> ${data.phone}<br/>
       <b>E-mail:</b> ${data.email}<br/>
       ${cardsHtml}
+      <br/><i>* Demais informações preenchidas estão na aba "COLETA DE INFORMAÇÕES" do card.</i>
     `;
-
-        // ─── 3. Build Deal Custom Fields ─────────────────────────────────────────
-        const cardCustomFields: Record<string, string | undefined> = {};
-        (data.cards || []).forEach((card: CardFieldMap, index: number) => {
-            Object.assign(cardCustomFields, buildCardCustomFields(card, index));
-        });
-
-        // Remove undefined values from payload
-        const cleanCustomFields = Object.fromEntries(
-            Object.entries(cardCustomFields).filter(([, v]) => v !== undefined)
-        );
 
         // ─── 4. Create Deal ──────────────────────────────────────────────────────
         const dealRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.deal.add.json`, {
@@ -110,7 +141,7 @@ export async function POST(request: Request) {
                     ...(contactId ? { CONTACT_ID: contactId } : {}),
                     COMMENTS: commentsHtml,
                     'UF_CRM_1769698737784': '81578', // Onboarding tag
-                    ...cleanCustomFields,
+                    ...customFields,
                 }
             }),
         });
