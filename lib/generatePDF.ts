@@ -3,7 +3,8 @@ import { supabase } from './supabaseClient';
 
 export async function generateAndUploadPDF(formData: any, email: string): Promise<string | null> {
     try {
-        const doc = new jsPDF();
+        // Inicializa o jsPDF com compressão ativada para deixar o arquivo mais leve
+        const doc = new jsPDF({ compress: true });
 
         // Configurações iniciais
         doc.setFont('helvetica', 'bold');
@@ -135,10 +136,11 @@ export async function generateAndUploadPDF(formData: any, email: string): Promis
             }
         }
 
-        // Gerar o PDF como Blob
-        const pdfBlob = doc.output('blob');
+        // Gerar o PDF comprimido como ArrayBuffer para upload mais seguro e leve
+        const pdfArrayBuffer = doc.output('arraybuffer');
+        const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
 
-        // Opcional: criar um nome de arquivo único
+        // Criar um nome de arquivo único
         const timestamp = new Date().getTime();
         const safeEmail = email.replace(/[^a-zA-Z0-9]/g, '_');
         const fileName = `coleta_${safeEmail}_${timestamp}.pdf`;
@@ -153,11 +155,12 @@ export async function generateAndUploadPDF(formData: any, email: string): Promis
             });
 
         if (uploadError) {
-            console.error('Erro no upload do PDF:', uploadError);
+            console.error('Erro detalhado no upload do PDF para o Supabase:', uploadError);
+            console.error('IMPORTANTE: Verifique as políticas RLS (Row Level Security) do bucket "Coleta". Se estiver usando o anon key, é necessário ter permissão de INSERT no bucket.');
             return null;
         }
 
-        // Se preferir retornar uma URL pública (opcional)
+        // Retornar a URL pública
         const { data: publicUrlData } = supabase.storage
             .from('Coleta')
             .getPublicUrl(fileName);

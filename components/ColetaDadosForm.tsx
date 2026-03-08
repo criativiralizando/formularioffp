@@ -241,6 +241,12 @@ export function ColetaDadosForm() {
                 }
                 const pdfUrl = await generateAndUploadPDF(fullFormData, form.getValues().email)
 
+                if (!pdfUrl) {
+                    toast.warning("Não foi possível enviar o PDF para o servidor.", {
+                        description: "Verifique as permissões (RLS) do bucket no Supabase ou veja o console.",
+                    });
+                }
+
                 // Add PDF url to the bitrix update data if it exists
                 const updatePayload = {
                     dealId,
