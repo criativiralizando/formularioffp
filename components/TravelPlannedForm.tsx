@@ -272,7 +272,7 @@ export function TravelPlannedForm({ initialData, onSubmit, onBack, isSubmitting 
                 </motion.div>
             )}
 
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-8 pt-4 pb-6 border-t border-border/10 relative w-full">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-8 pt-4 pb-12 border-t border-border/10 relative w-full">
                 <Button
                     type="button"
                     variant="ghost"
