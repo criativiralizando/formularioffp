@@ -64,8 +64,8 @@ export async function POST(request: Request) {
         // ─── 2. Build Comments HTML ──────────────────────────────────────────────
         let cardsHtml = '';
         (data.cards || []).forEach((card: Record<string, string>, index: number) => {
-            const bank = card.bank === 'Outro banco' ? card.bankOther : card.bank;
-            const cardName = card.card === 'Outro cartao' ? card.cardOther : card.card;
+            const bank = card.bank === 'Outro' ? card.bankOther : card.bank;
+            const cardName = card.card === 'Outro' ? card.cardOther : card.card;
             const brand = card.brand === 'Outro' ? card.brandOther : card.brand;
             const category = card.category === 'Outro' ? card.categoryOther : card.category;
             cardsHtml += `
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         });
 
         const commentsHtml = `
-      <b>COLETA DE DADOS FFP — PÁGINA 1/3</b><br/>
+      <b>COLETA DE DADOS FPP — PÁGINA 1/3</b><br/>
       <b>Nome:</b> ${data.fullName}<br/>
       <b>WhatsApp:</b> ${data.phone}<br/>
       <b>E-mail:</b> ${data.email}<br/>
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 fields: {
-                    TITLE: `${data.fullName} - Coleta FFP`,
+                    TITLE: `${data.fullName} - Coleta FPP`,
                     STAGE_ID: 'C44:UC_1BTXZU',
                     CATEGORY_ID: 44,
                     ...(contactId ? { CONTACT_ID: contactId } : {}),

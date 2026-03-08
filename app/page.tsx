@@ -8,7 +8,7 @@ export default function Home() {
       </main>
 
       {/* Persistent Footer - fixed bottom to avoid scroll */}
-      <footer className="fixed bottom-4 text-center text-[10px] uppercase tracking-widest text-muted-foreground/30 pointer-events-none">
+      <footer className="fixed bottom-4 text-center text-[10px] uppercase tracking-widest text-slate-500 dark:text-muted-foreground/30 pointer-events-none">
         <p>&copy; {new Date().getFullYear()} Fly Per Points. Todos os direitos reservados.</p>
       </footer>
     </div>

@@ -18,48 +18,47 @@ export const BANK_DATA: BankMapping = {
       "Ourocard Elo Diners Club": { brand: "Elo", category: "Nanquim" },
       "Ourocard Mastercard Black": { brand: "Mastercard", category: "Black" },
       "Smiles Visa Infinite": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Itaú": {
     cards: {
       "Itaú Free": { brand: "Visa", category: "Platinum" },
       "Itaú Uniclass Signature": { brand: "Visa", category: "Signature" },
-      "Azul Itaú": { brand: "Visa", category: "Infinite" },
-      "LATAM Pass Itaú": { brand: "Visa/Mastercard", category: "Infinite/Black" },
-      "Pão de Açúcar": { brand: "Mastercard", category: "Black" },
-      "Personnalité": { brand: "Visa/Mastercard", category: "Infinite/Black" },
-      "The One": { brand: "Mastercard", category: "Black" },
+      "Azul Itaú Infinite": { brand: "Visa", category: "Infinite" },
+      "LATAM Pass Itaú Infinite": { brand: "Visa", category: "Infinite" },
+      "LATAM Pass Itaú Black": { brand: "Mastercard", category: "Black" },
+      "Pão de Açúcar Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Personnalité Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "Personnalité Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "The One Mastercard Black": { brand: "Mastercard", category: "Black" },
       "Private Infinite Privilege": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Bradesco": {
     cards: {
       "Bradesco Neo": { brand: "Visa", category: "Platinum" },
       "Bradesco Signature": { brand: "Visa", category: "Signature" },
-      "Bradesco Infinite": { brand: "Visa", category: "Infinite" },
-      "Bradesco Black": { brand: "Mastercard", category: "Black" },
-      "Bradesco Elo Nanquim": { brand: "Elo", category: "Nanquim" },
-      "Bradesco Elo Diners Club": { brand: "Elo", category: "Nanquim" },
-      "American Express Gold": { brand: "Amex", category: "Gold" },
+      "Bradesco Prime Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "Bradesco Prime Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Elo Diners Club Nanquim": { brand: "Elo", category: "Nanquim" },
       "American Express Platinum": { brand: "Amex", category: "Platinum" },
       "American Express Centurion": { brand: "Amex", category: "Centurion" },
-      "AETERNUM": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Bradesco Horizon Infinite": { brand: "Visa", category: "Infinite" },
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Santander": {
     cards: {
-      "Santander SX": { brand: "Visa", category: "Gold" },
+      "Santander Free": { brand: "Visa", category: "Gold" },
       "Santander Elite": { brand: "Visa/Mastercard", category: "Platinum" },
-      "Santander Unique": { brand: "Visa/Mastercard", category: "Infinite/Black" },
-      "Santander Unlimited": { brand: "Visa/Mastercard", category: "Infinite/Black" },
-      "Santander GOL Smiles": { brand: "Visa", category: "Infinite" },
-      "Santander AAdvantage": { brand: "Mastercard", category: "Black" },
-      "Santander American Express": { brand: "Amex", category: "Platinum" },
-      "Santander Centurion": { brand: "Amex", category: "Centurion" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Santander Unique Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "Santander Unique Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Santander Unlimited Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "Santander Unlimited Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "AAdvantage Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Nubank": {
@@ -67,7 +66,7 @@ export const BANK_DATA: BankMapping = {
       "Nubank Gold": { brand: "Mastercard", category: "Gold" },
       "Nubank Platinum": { brand: "Mastercard", category: "Platinum" },
       "Nubank Ultravioleta": { brand: "Mastercard", category: "Black" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Inter": {
@@ -76,62 +75,56 @@ export const BANK_DATA: BankMapping = {
       "Inter Platinum": { brand: "Mastercard", category: "Platinum" },
       "Inter Black": { brand: "Mastercard", category: "Black" },
       "Inter Win": { brand: "Mastercard", category: "Black" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "C6 Bank": {
     cards: {
-      "C6 Bank": { brand: "Mastercard", category: "Standard" },
       "C6 Platinum": { brand: "Mastercard", category: "Platinum" },
+      "C6 Black": { brand: "Mastercard", category: "Black" },
       "C6 Carbon": { brand: "Mastercard", category: "Black" },
-      "C6 Graphene": { brand: "Mastercard", category: "Black" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "BTG Pactual": {
     cards: {
-      "BTG Opção Avançada": { brand: "Mastercard", category: "Platinum" },
-      "BTG Black": { brand: "Mastercard", category: "Black" },
+      "BTG Pactual Black": { brand: "Mastercard", category: "Black" },
       "BTG Ultrablue": { brand: "Mastercard", category: "Black" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "XP Investimentos": {
     cards: {
+      "XP Visa Infinite One": { brand: "Visa", category: "Infinite" },
       "XP Visa Infinite": { brand: "Visa", category: "Infinite" },
-      "XP Visa Infinite (One)": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
+    }
+  },
+  "Porto Bank": {
+    cards: {
+      "Porto Bank Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "Porto Bank Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Banco BRB": {
     cards: {
-      "BRB Dux": { brand: "Visa", category: "Infinite" },
-      "BRB Dux Eurobike": { brand: "Visa", category: "Infinite" },
-      "BRB Mastercard Black": { brand: "Mastercard", category: "Black" },
-      "BRB Visa Infinite": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
-    }
-  },
-  "Porto Bank (Porto Seguro)": {
-    cards: {
-      "Porto Bank Platinum": { brand: "Visa/Mastercard", category: "Platinum" },
-      "Porto Bank Black": { brand: "Mastercard", category: "Black" },
-      "Porto Bank Infinite": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "BRB Dux Visa Infinite": { brand: "Visa", category: "Infinite" },
+      "BRB Dux Eurobike Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
   "Caixa Econômica": {
     cards: {
-      "Caixa Elo Nanquim": { brand: "Elo", category: "Black" },
-      "Caixa Elo Diners Club": { brand: "Elo", category: "Nanquim" },
-      "Caixa Mastercard Black": { brand: "Mastercard", category: "Black" },
+      "Caixa Sim": { brand: "Visa", category: "Standard" },
+      "Caixa Elo Diners Club Nanquim": { brand: "Elo", category: "Nanquim" },
       "Caixa Visa Infinite": { brand: "Visa", category: "Infinite" },
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   },
-  "Outro banco": {
+  "Outro": {
     cards: {
-      "Outro cartao": { brand: "Outro", category: "Outro" }
+      "Outro": { brand: "Outro", category: "Outro" }
     }
   }
 };

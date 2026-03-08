@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Coleta de Dados FFP",
+  title: "Coleta de Dados FPP",
   description: "Formulário de Coleta de Dados Fly Per Points",
 };
 

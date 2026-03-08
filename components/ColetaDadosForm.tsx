@@ -12,6 +12,7 @@ import { useTheme } from "next-themes"
 import { TravelIssuedForm, type TravelIssuedData } from "@/components/TravelIssuedForm"
 import { TravelPlannedForm, type TravelPlannedData } from "@/components/TravelPlannedForm"
 import { generateAndUploadPDF } from "@/lib/generatePDF"
+import { getFormattedCardName } from "@/lib/card-names"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -57,7 +58,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-const STORAGE_KEY = "coleta-dados-ffp-draft"
+const STORAGE_KEY = "coleta-dados-fpp-draft"
 
 const defaultTrip = {
     departureDate: "", returnDate: "", country: "", city: "",
@@ -192,10 +193,10 @@ export function ColetaDadosForm() {
                 toast.success("Etapa 1 salva! Vamos continuar.", { id: toastId })
                 setCurrentStep(2)
             } else {
-                toast.error("Erro ao salvar etapa 1. Tente novamente.", { id: toastId })
+                toast.error("Ocorreu um problema ao processar seu envio. Por favor, tente novamente.", { id: toastId })
             }
         } catch (error) {
-            toast.error("Erro na conexão. Tente novamente.", { id: toastId })
+            toast.error("Falha na conexão. Verifique sua internet e tente novamente.", { id: toastId })
             console.error(error)
         } finally {
             setIsSubmitting(false)
@@ -239,12 +240,11 @@ export function ColetaDadosForm() {
                     step2: travelIssued,
                     step3: data
                 }
-                const pdfUrl = await generateAndUploadPDF(fullFormData, form.getValues().email)
+                const pdfUrl = await generateAndUploadPDF("pdf-capture-area", fullFormData, form.getValues().email, (resolvedTheme as 'dark' | 'light') || 'dark')
 
                 if (!pdfUrl) {
-                    toast.warning("Não foi possível enviar o PDF para o servidor.", {
-                        description: "Verifique as permissões (RLS) do bucket no Supabase ou veja o console.",
-                    });
+                    // Suppressing technical error message for the user as requested
+                    console.error("PDF Upload failed: RLS or Bucket issue.");
                 }
 
                 // Add PDF url to the bitrix update data if it exists
@@ -268,16 +268,16 @@ export function ColetaDadosForm() {
                     localStorage.removeItem(STORAGE_KEY)
                     setIsSuccess(true)
                 } else {
-                    toast.error("Erro ao finalizar envio. Tente novamente.", { id: toastId })
+                    toast.error("Ocorreu um erro ao finalizar seu envio. Por favor, tente novamente.", { id: toastId })
                 }
             } else {
                 // No dealId — save data locally as fallback
-                toast.success("Dados registrados localmente!", { id: toastId })
+                toast.success("Informações recebidas com sucesso!", { id: toastId })
                 localStorage.removeItem(STORAGE_KEY)
                 setIsSuccess(true)
             }
         } catch (error) {
-            toast.error("Erro na conexão.", { id: toastId })
+            toast.error("Erro ao enviar seus dados. Por favor, tente novamente mais tarde.", { id: toastId })
             console.error(error)
         } finally {
             setIsSubmitting(false)
@@ -301,15 +301,19 @@ export function ColetaDadosForm() {
                 <p className="text-muted-foreground leading-relaxed">
                     Recebemos seus dados. Nossa equipe de gestão entrará em contato em breve para os próximos passos.
                 </p>
-                <Button onClick={() => {
-                    setIsSuccess(false)
-                    setCurrentStep(1)
-                    form.reset()
-                    setTravelIssued(defaultTravelIssued)
-                    setTravelPlanned(defaultTravelPlanned)
-                    setDealId(null)
-                    localStorage.removeItem(STORAGE_KEY)
-                }} variant="default" className="mt-8 rounded-full px-8 text-slate-900 hover:text-slate-900 hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(227,66,72,0.4)] transition-all duration-300">
+                <Button
+                    onClick={() => {
+                        setIsSuccess(false)
+                        setCurrentStep(1)
+                        form.reset()
+                        setTravelIssued(defaultTravelIssued)
+                        setTravelPlanned(defaultTravelPlanned)
+                        setDealId(null)
+                        localStorage.removeItem(STORAGE_KEY)
+                    }}
+                    variant="default"
+                    className="mt-8 rounded-full px-8 bg-slate-100 hover:bg-white text-slate-900 font-bold hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all duration-300 border border-slate-200"
+                >
                     <RefreshCcw className="w-4 h-4 mr-2" />
                     Voltar ao Início
                 </Button>
@@ -435,9 +439,10 @@ export function ColetaDadosForm() {
                                         const watchCategory = watchValues?.category
                                         const watchMonthlySpend = watchValues?.monthlySpend
 
-                                        const availableCardsList = watchCardBank && BANK_DATA[watchCardBank]
-                                            ? Object.keys(BANK_DATA[watchCardBank].cards)
+                                        const baseCardsList = watchCardBank && BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
+                                            ? Object.keys(BANK_DATA[watchCardBank as keyof typeof BANK_DATA].cards)
                                             : []
+                                        const availableCardsList = [...baseCardsList, "Outro"]
 
                                         const enabled = {
                                             card: !!watchCardBank,
@@ -456,7 +461,9 @@ export function ColetaDadosForm() {
                                                 className="relative p-4 rounded-xl border border-primary/10 bg-primary/[0.02] space-y-4"
                                             >
                                                 <div className="flex items-center justify-between border-b border-primary/5 pb-2">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">Cartão {index + 1}</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
+                                                        Cartão {index + 1} | {getFormattedCardName(watchValues?.bank, watchValues?.card === "Outro" ? watchValues?.cardOther : watchValues?.card)}
+                                                    </span>
                                                     {fields.length > 1 && (
                                                         <Button
                                                             type="button"
@@ -495,7 +502,11 @@ export function ColetaDadosForm() {
                                                                             </SelectTrigger>
                                                                         </FormControl>
                                                                         <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                            {Object.keys(BANK_DATA).map(bank => (
+                                                                            {Object.keys(BANK_DATA).sort((a, b) => {
+                                                                                if (a === 'Outro') return 1;
+                                                                                if (b === 'Outro') return -1;
+                                                                                return a.localeCompare(b, 'pt-BR');
+                                                                            }).map(bank => (
                                                                                 <SelectItem key={bank} value={bank} className="text-xs">{bank}</SelectItem>
                                                                             ))}
                                                                         </SelectContent>
@@ -516,10 +527,13 @@ export function ColetaDadosForm() {
                                                                         disabled={!enabled.card}
                                                                         onValueChange={(val) => {
                                                                             cardField.onChange(val)
-                                                                            if (watchCardBank && watchCardBank !== "Outro banco" && BANK_DATA[watchCardBank as keyof typeof BANK_DATA] && val !== "Outro cartao") {
-                                                                                const cardInfo = BANK_DATA[watchCardBank as keyof typeof BANK_DATA].cards[val as any]
-                                                                                form.setValue(`cards.${index}.brand`, cardInfo.brand)
-                                                                                form.setValue(`cards.${index}.category`, cardInfo.category)
+                                                                            if (watchCardBank && watchCardBank !== "Outro" && BANK_DATA[watchCardBank as keyof typeof BANK_DATA] && val !== "Outro") {
+                                                                                const bankInfo = BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
+                                                                                const cardInfo = bankInfo.cards[val as keyof typeof bankInfo.cards]
+                                                                                if (cardInfo) {
+                                                                                    form.setValue(`cards.${index}.brand`, cardInfo.brand)
+                                                                                    form.setValue(`cards.${index}.category`, cardInfo.category)
+                                                                                }
                                                                             }
                                                                         }}
                                                                         value={cardField.value}
@@ -550,15 +564,15 @@ export function ColetaDadosForm() {
 
                                                                 const getAvailableBrands = () => {
                                                                     const defaultBrands = ["Visa", "Mastercard", "Amex", "Elo", "Centurion", "Outro"]
-                                                                    if (!watchBank || !watchCard || watchBank === "Outro banco" || watchCard === "Outro cartao") {
+                                                                    if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
                                                                         return defaultBrands
                                                                     }
                                                                     const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
                                                                     if (!bankInfo) return defaultBrands
-                                                                    const cardInfo = bankInfo.cards[watchCard as any]
-                                                                    if (!cardInfo) return defaultBrands
+                                                                    const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
+                                                                    if (!cardInfo || !cardInfo.brand) return defaultBrands
 
-                                                                    const brands = cardInfo.brand.split("/").map(b => b.trim())
+                                                                    const brands = (cardInfo.brand as string).split("/").map(b => b.trim())
                                                                     if (!brands.includes("Outro")) brands.push("Outro")
                                                                     return brands
                                                                 }
@@ -600,15 +614,15 @@ export function ColetaDadosForm() {
 
                                                                 const getAvailableCategories = () => {
                                                                     const defaultCategories = ["Standard", "Gold", "Platinum", "Black", "Infinite", "Signature", "Centurion", "Nanquim", "Outro"]
-                                                                    if (!watchBank || !watchCard || watchBank === "Outro banco" || watchCard === "Outro cartao") {
+                                                                    if (!watchBank || !watchCard || watchBank === "Outro" || watchCard === "Outro") {
                                                                         return defaultCategories
                                                                     }
                                                                     const bankInfo = BANK_DATA[watchBank as keyof typeof BANK_DATA]
                                                                     if (!bankInfo) return defaultCategories
-                                                                    const cardInfo = bankInfo.cards[watchCard as any]
-                                                                    if (!cardInfo) return defaultCategories
+                                                                    const cardInfo = bankInfo.cards[watchCard as keyof typeof bankInfo.cards]
+                                                                    if (!cardInfo || !cardInfo.category) return defaultCategories
 
-                                                                    const categories = cardInfo.category.split("/").map(c => c.trim())
+                                                                    const categories = (cardInfo.category as string).split("/").map(c => c.trim())
                                                                     if (!categories.includes("Outro")) categories.push("Outro")
                                                                     return categories
                                                                 }
@@ -678,12 +692,12 @@ export function ColetaDadosForm() {
                                                                     >
                                                                         <FormControl>
                                                                             <SelectTrigger className="bg-background/40 h-11 text-xs">
-                                                                                <SelectValue placeholder="Livre de Anuidade?" />
+                                                                                <SelectValue placeholder="Paga Anuidade?" />
                                                                             </SelectTrigger>
                                                                         </FormControl>
                                                                         <SelectContent>
-                                                                            <SelectItem value="SIM" className="text-xs">SIM (Livre)</SelectItem>
-                                                                            <SelectItem value="NÃO" className="text-xs">NÃO (Paga)</SelectItem>
+                                                                            <SelectItem value="SIM" className="text-xs">SIM (Paga)</SelectItem>
+                                                                            <SelectItem value="NÃO" className="text-xs">NÃO (Livre)</SelectItem>
                                                                         </SelectContent>
                                                                     </Select>
                                                                     <FormMessage className="text-[8px]" />
@@ -695,14 +709,14 @@ export function ColetaDadosForm() {
 
                                                 {/* Other Inputs */}
                                                 <AnimatePresence>
-                                                    {(watchCardBank === "Outro banco" || watchCardName === "Outro cartao" || watchBrand === "Outro" || watchCategory === "Outro") && (
+                                                    {(watchCardBank === "Outro" || watchCardName === "Outro" || watchBrand === "Outro" || watchCategory === "Outro") && (
                                                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-primary/5 mt-2">
-                                                            {watchCardBank === "Outro banco" && (
+                                                            {watchCardBank === "Outro" && (
                                                                 <FormField control={form.control} name={`cards.${index}.bankOther`} render={({ field }) => (
                                                                     <Input placeholder="Qual o Banco?" className="h-10 text-xs bg-background/60" {...field} />
                                                                 )} />
                                                             )}
-                                                            {watchCardName === "Outro cartao" && (
+                                                            {watchCardName === "Outro" && (
                                                                 <FormField control={form.control} name={`cards.${index}.cardOther`} render={({ field }) => (
                                                                     <Input placeholder="Qual o Cartão?" className="h-10 text-xs bg-background/60" {...field} />
                                                                 )} />
@@ -783,3 +797,4 @@ export function ColetaDadosForm() {
         </Card>
     )
 }
+
