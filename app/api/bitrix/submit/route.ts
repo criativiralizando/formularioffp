@@ -6,33 +6,36 @@ const BITRIX_WEBHOOK_URL = "https://fpp.bitrix24.com.br/rest/1058/145rhig7cpmobx
 export async function POST(request: Request) {
     try {
         const data = await request.json();
+        const dealId = data.dealId;
 
-        // ─── 1. Create Contact ───────────────────────────────────────────────────
+        // ─── 1. Handle Contact (Only if creating new deal or explicitly requested) ───
         let contactId: number | null = null;
-        const nameParts = (data.fullName || '').split(' ');
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(' ');
+        if (!dealId) {
+            const nameParts = (data.fullName || '').split(' ');
+            const firstName = nameParts[0];
+            const lastName = nameParts.slice(1).join(' ');
 
-        try {
-            const contactRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.contact.add.json`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fields: {
-                        NAME: firstName,
-                        LAST_NAME: lastName || '',
-                        PHONE: [{ VALUE: data.phone, VALUE_TYPE: 'WORK' }],
-                        EMAIL: [{ VALUE: data.email, VALUE_TYPE: 'WORK' }],
-                        SOURCE_ID: 'WEB',
-                    }
-                }),
-            });
-            if (contactRes.ok) {
-                const contactJson = await contactRes.json();
-                contactId = contactJson.result ?? null;
+            try {
+                const contactRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.contact.add.json`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fields: {
+                            NAME: firstName,
+                            LAST_NAME: lastName || '',
+                            PHONE: [{ VALUE: data.phone, VALUE_TYPE: 'WORK' }],
+                            EMAIL: [{ VALUE: data.email, VALUE_TYPE: 'WORK' }],
+                            SOURCE_ID: 'WEB',
+                        }
+                    }),
+                });
+                if (contactRes.ok) {
+                    const contactJson = await contactRes.json();
+                    contactId = contactJson.result ?? null;
+                }
+            } catch (e) {
+                console.error('Contact creation failed (non-fatal):', e);
             }
-        } catch (e) {
-            console.error('Contact creation failed (non-fatal):', e);
         }
 
         // ─── 2. Build Deal Custom Fields ─────────────────────────────────────────
@@ -40,74 +43,78 @@ export async function POST(request: Request) {
 
         // Helper to safely assign if field exists in map
         const assignField = (key: keyof typeof fieldMap, value: any) => {
-            const bitrixKey = fieldMap[key];
+            const bitrixKey = fieldMap[key as keyof typeof fieldMap];
             if (bitrixKey && value !== undefined && value !== null && value !== '') {
                 customFields[bitrixKey] = Array.isArray(value) ? value.join(', ') : String(value);
             }
         };
 
-        // Personal Info
+        // Identification & Management (PRIORITY)
         assignField('FPP_NOME', data.fullName);
         assignField('FPP_WHATSAPP', data.phone);
         assignField('FPP_EMAIL', data.email);
+        assignField('FPP_RESPONSAVEL', data.responsavel);
+        assignField('FPP_COMENTARIO', data.comentario);
 
         // Cards (up to 5)
         (data.cards || []).forEach((c: any, i: number) => {
             const index = i + 1;
             if (index > 5) return;
-            assignField(`FPP_CARD_${index}_BANK` as keyof typeof fieldMap, c.bank === 'Outro' ? c.bankOther : c.bank);
-            assignField(`FPP_CARD_${index}_NAME` as keyof typeof fieldMap, c.card === 'Outro' ? c.cardOther : c.card);
-            assignField(`FPP_CARD_${index}_BRAND` as keyof typeof fieldMap, c.brand === 'Outro' ? c.brandOther : c.brand);
-            assignField(`FPP_CARD_${index}_CATEGORY` as keyof typeof fieldMap, c.category === 'Outro' ? c.categoryOther : c.category);
-            assignField(`FPP_CARD_${index}_SPEND` as keyof typeof fieldMap, c.monthlySpend);
-            assignField(`FPP_CARD_${index}_ANNUITY` as keyof typeof fieldMap, c.annuityFree);
+            assignField(`FPP_CARD_${index}_BANK` as any, c.bank === 'Outro' ? c.bankOther : c.bank);
+            assignField(`FPP_CARD_${index}_NAME` as any, c.card === 'Outro' ? c.cardOther : c.card);
+            assignField(`FPP_CARD_${index}_BRAND` as any, c.brand === 'Outro' ? c.brandOther : c.brand);
+            assignField(`FPP_CARD_${index}_CATEGORY` as any, c.category === 'Outro' ? c.categoryOther : c.category);
+            assignField(`FPP_CARD_${index}_SPEND` as any, c.monthlySpend);
+            assignField(`FPP_CARD_${index}_ANNUITY` as any, c.annuityFree);
         });
 
         // Issued Trips
-        assignField('FPP_HAS_ISSUED', data.travelIssued?.hasIssuedTrips);
-        (data.travelIssued?.trips || []).forEach((t: any, i: number) => {
+        const step2 = data.step2 || {};
+        assignField('FPP_HAS_ISSUED', step2.hasIssuedTrips);
+        (step2.trips || []).forEach((t: any, i: number) => {
             const index = i + 1;
             if (index > 5) return;
-            assignField(`FPP_ISSTRIP_${index}_DEP` as keyof typeof fieldMap, t.departureDate);
-            assignField(`FPP_ISSTRIP_${index}_RET` as keyof typeof fieldMap, t.returnDate);
-            assignField(`FPP_ISSTRIP_${index}_COUNTRY` as keyof typeof fieldMap, t.country);
-            assignField(`FPP_ISSTRIP_${index}_CITY` as keyof typeof fieldMap, t.city);
-            assignField(`FPP_ISSTRIP_${index}_MULTIPLE` as keyof typeof fieldMap, t.multipleDestinations);
-            assignField(`FPP_ISSTRIP_${index}_EXTRA` as keyof typeof fieldMap, t.extraDestinations);
-            assignField(`FPP_ISSTRIP_${index}_ADULTS` as keyof typeof fieldMap, t.adults);
-            assignField(`FPP_ISSTRIP_${index}_CHILD` as keyof typeof fieldMap, t.children);
-            assignField(`FPP_ISSTRIP_${index}_BABIES` as keyof typeof fieldMap, t.babies);
-            assignField(`FPP_ISSTRIP_${index}_REASON` as keyof typeof fieldMap, t.travelReason);
-            assignField(`FPP_ISSTRIP_${index}_REASON_OTH` as keyof typeof fieldMap, t.travelReasonOther);
-            assignField(`FPP_ISSTRIP_${index}_SERVICES` as keyof typeof fieldMap, t.services);
-            assignField(`FPP_ISSTRIP_${index}_UNRES` as keyof typeof fieldMap, t.unreservedServices);
-            assignField(`FPP_ISSTRIP_${index}_UNRES_OTH` as keyof typeof fieldMap, t.unreservedOther);
-            assignField(`FPP_ISSTRIP_${index}_BUDGET` as keyof typeof fieldMap, t.budget);
-            assignField(`FPP_ISSTRIP_${index}_TEAM_OPT` as keyof typeof fieldMap, t.teamOptimize);
-            assignField(`FPP_ISSTRIP_${index}_NOTES` as keyof typeof fieldMap, t.travelNotes);
+            assignField(`FPP_ISSTRIP_${index}_DEP` as any, t.departureDate);
+            assignField(`FPP_ISSTRIP_${index}_RET` as any, t.returnDate);
+            assignField(`FPP_ISSTRIP_${index}_COUNTRY` as any, t.country);
+            assignField(`FPP_ISSTRIP_${index}_CITY` as any, t.city);
+            assignField(`FPP_ISSTRIP_${index}_MULTIPLE` as any, t.multipleDestinations);
+            assignField(`FPP_ISSTRIP_${index}_EXTRA` as any, t.extraDestinations);
+            assignField(`FPP_ISSTRIP_${index}_ADULTS` as any, t.adults);
+            assignField(`FPP_ISSTRIP_${index}_CHILD` as any, t.children);
+            assignField(`FPP_ISSTRIP_${index}_BABIES` as any, t.babies);
+            assignField(`FPP_ISSTRIP_${index}_REASON` as any, t.travelReason);
+            assignField(`FPP_ISSTRIP_${index}_REASON_OTH` as any, t.travelReasonOther);
+            assignField(`FPP_ISSTRIP_${index}_SERVICES` as any, t.services);
+            assignField(`FPP_ISSTRIP_${index}_UNRES` as any, t.unreservedServices);
+            assignField(`FPP_ISSTRIP_${index}_UNRES_OTH` as any, t.unreservedOther);
+            assignField(`FPP_ISSTRIP_${index}_BUDGET` as any, t.budget);
+            assignField(`FPP_ISSTRIP_${index}_TEAM_OPT` as any, t.teamOptimize);
+            assignField(`FPP_ISSTRIP_${index}_NOTES` as any, t.travelNotes);
         });
 
         // Planned Trips
-        assignField('FPP_HAS_PLANNED', data.travelPlanned?.hasPlannedTrip);
-        assignField('FPP_PLAN_COUNTRY', data.travelPlanned?.country);
-        assignField('FPP_PLAN_CITY', data.travelPlanned?.city);
-        assignField('FPP_PLAN_MULTIPLE', data.travelPlanned?.multipleDestinations);
-        assignField('FPP_PLAN_EXTRA', data.travelPlanned?.extraDestinations);
-        assignField('FPP_PLAN_TIME', data.travelPlanned?.timeframe);
-        assignField('FPP_PLAN_DEP', data.travelPlanned?.plannedDepartureDate);
-        assignField('FPP_PLAN_RET', data.travelPlanned?.plannedReturnDate);
-        assignField('FPP_PLAN_ADULTS', data.travelPlanned?.adults);
-        assignField('FPP_PLAN_CHILD', data.travelPlanned?.children);
-        assignField('FPP_PLAN_BABIES', data.travelPlanned?.babies);
-        assignField('FPP_PLAN_REASON', data.travelPlanned?.travelReason);
-        assignField('FPP_PLAN_REASON_OTH', data.travelPlanned?.travelReasonOther);
-        assignField('FPP_PLAN_SVCS', data.travelPlanned?.plannedServices);
-        assignField('FPP_PLAN_SVCS_OTH', data.travelPlanned?.plannedServicesOther);
-        assignField('FPP_PLAN_BUDGET', data.travelPlanned?.budget);
-        assignField('FPP_PLAN_HELP', data.travelPlanned?.teamHelp);
-        assignField('FPP_PLAN_HELP_NOTES', data.travelPlanned?.teamHelpNotes);
+        const step3 = data.step3 || {};
+        assignField('FPP_HAS_PLANNED', step3.hasPlannedTrip);
+        assignField('FPP_PLAN_COUNTRY', step3.country);
+        assignField('FPP_PLAN_CITY', step3.city);
+        assignField('FPP_PLAN_MULTIPLE', step3.multipleDestinations);
+        assignField('FPP_PLAN_EXTRA', step3.extraDestinations);
+        assignField('FPP_PLAN_TIME', step3.timeframe);
+        assignField('FPP_PLAN_DEP', step3.plannedDepartureDate);
+        assignField('FPP_PLAN_RET', step3.plannedReturnDate);
+        assignField('FPP_PLAN_ADULTS', step3.adults);
+        assignField('FPP_PLAN_CHILD', step3.children);
+        assignField('FPP_PLAN_BABIES', step3.babies);
+        assignField('FPP_PLAN_REASON', step3.travelReason);
+        assignField('FPP_PLAN_REASON_OTH', step3.travelReasonOther);
+        assignField('FPP_PLAN_SVCS', step3.plannedServices);
+        assignField('FPP_PLAN_SVCS_OTH', step3.plannedServicesOther);
+        assignField('FPP_PLAN_BUDGET', step3.budget);
+        assignField('FPP_PLAN_HELP', step3.teamHelp);
+        assignField('FPP_PLAN_HELP_NOTES', step3.teamHelpNotes);
 
-        // ─── 3. Build Comments HTML (Fallback / Overview) ────────────────────────
+        // ─── 3. Build Comments HTML (Fallack / Overview) ────────────────────────
         let cardsHtml = '';
         (data.cards || []).forEach((c: any, index: number) => {
             cardsHtml += `
@@ -120,53 +127,80 @@ export async function POST(request: Request) {
         <b>Anuidade:</b> ${c.annuityFree}<br/>
       `;
         });
+
         const commentsHtml = `
-      <b>COLETA DE DADOS FPP</b><br/>
-      <b>Nome:</b> ${data.fullName}<br/>
+      <b>COLETA DE DADOS FPP - FINALIZADO</b><br/>
+      <b>Responsável:</b> ${data.responsavel || 'N/A'}<br/>
+      <b>Comentário:</b> ${data.comentario || 'N/A'}<br/>
+      <hr/>
+      <b>Nome Cliente:</b> ${data.fullName}<br/>
       <b>WhatsApp:</b> ${data.phone}<br/>
       <b>E-mail:</b> ${data.email}<br/>
       ${cardsHtml}
       <br/><i>* Demais informações preenchidas estão na aba "COLETA DE INFORMAÇÕES" do card.</i>
     `;
 
-        // ─── 4. Create Deal ──────────────────────────────────────────────────────
-        const dealRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.deal.add.json`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fields: {
-                    TITLE: `${data.fullName} - Coleta FPP`,
-                    STAGE_ID: 'C44:UC_1BTXZU',
-                    CATEGORY_ID: 44,
-                    ...(contactId ? { CONTACT_ID: contactId } : {}),
-                    COMMENTS: commentsHtml,
-                    'UF_CRM_1769698737784': '81578', // Onboarding tag
-                    ...customFields,
+        // ─── 4. Create or Update Deal ────────────────────────────────────────────
+        if (dealId) {
+            // Fetch existing comments to append
+            let existingComments = '';
+            try {
+                const getRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.deal.get.json?id=${dealId}`);
+                if (getRes.ok) {
+                    const getJson = await getRes.json();
+                    existingComments = getJson.result?.COMMENTS || '';
                 }
-            }),
-        });
+            } catch (e) {
+                console.error('Failed to fetch existing comments:', e);
+            }
 
-        const dealJson = await dealRes.json();
+            const updateRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.deal.update.json`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: dealId,
+                    fields: {
+                        COMMENTS: existingComments + '<br/><br/>' + commentsHtml,
+                        ...customFields,
+                    }
+                }),
+            });
 
-        if (!dealRes.ok || dealJson.error) {
-            console.error('Deal creation error:', dealJson);
-            return NextResponse.json(
-                {
-                    success: false,
-                    partialSuccess: !!contactId,
-                    contactId,
-                    error: dealJson.error_description || 'Error creating deal',
-                    bitrixError: dealJson,
-                },
-                { status: 500 }
-            );
+            const updateJson = await updateRes.json();
+            if (!updateRes.ok || updateJson.error) {
+                throw new Error(updateJson.error_description || 'Error updating deal');
+            }
+
+            return NextResponse.json({ success: true, dealId });
+        } else {
+            // Create New Deal
+            const dealRes = await fetch(`${BITRIX_WEBHOOK_URL}/crm.deal.add.json`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fields: {
+                        TITLE: `${data.fullName} - Coleta FPP`,
+                        STAGE_ID: 'C44:UC_1BTXZU',
+                        CATEGORY_ID: 44,
+                        ...(contactId ? { CONTACT_ID: contactId } : {}),
+                        COMMENTS: commentsHtml,
+                        'UF_CRM_1769698737784': '81578', // Onboarding tag
+                        ...customFields,
+                    }
+                }),
+            });
+
+            const dealJson = await dealRes.json();
+            if (!dealRes.ok || dealJson.error) {
+                throw new Error(dealJson.error_description || 'Error creating deal');
+            }
+
+            return NextResponse.json({
+                success: true,
+                contactId,
+                dealId: dealJson.result,
+            });
         }
-
-        return NextResponse.json({
-            success: true,
-            contactId,
-            dealId: dealJson.result,
-        });
 
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Internal Server Error';
@@ -174,3 +208,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: msg }, { status: 500 });
     }
 }
+

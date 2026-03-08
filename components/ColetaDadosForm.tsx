@@ -13,6 +13,7 @@ import { TravelIssuedForm, type TravelIssuedData } from "@/components/TravelIssu
 import { TravelPlannedForm, type TravelPlannedData } from "@/components/TravelPlannedForm"
 import { generateAndUploadPDF } from "@/lib/generatePDF"
 import { getFormattedCardName } from "@/lib/card-names"
+import { useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -53,6 +54,8 @@ const formSchema = z.object({
     fullName: z.string().min(3, { message: "Nome completo é obrigatório" }),
     phone: z.string().min(14, { message: "WhatsApp inválido" }),
     email: z.string().email({ message: "E-mail inválido" }),
+    responsavel: z.string().min(1, { message: "Responsável é obrigatório" }),
+    comentario: z.string().optional(),
     cards: z.array(cardSchema).min(1, { message: "Adicione pelo menos um cartão" }).max(5),
 })
 
@@ -79,8 +82,11 @@ const defaultTravelPlanned: TravelPlannedData = {
 }
 
 export function ColetaDadosForm() {
+    const searchParams = useSearchParams()
+    const urlDealId = searchParams.get("dealId")
+
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
-    const [dealId, setDealId] = useState<number | null>(null)
+    const [dealId, setDealId] = useState<number | null>(urlDealId ? parseInt(urlDealId) : null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isSuccess, setIsSuccess] = useState(false)
     const [travelIssued, setTravelIssued] = useState<TravelIssuedData>(defaultTravelIssued)
@@ -98,6 +104,8 @@ export function ColetaDadosForm() {
             fullName: "",
             phone: "",
             email: "",
+            responsavel: "",
+            comentario: "",
             cards: [{ bank: "", card: "", brand: "", category: "", monthlySpend: "", annuityFree: "" }],
         },
     })
@@ -173,108 +181,79 @@ export function ColetaDadosForm() {
         onChange(formattedValue)
     }
 
-    // Step 1 → Submit to Bitrix, go to step 2
+    // Step 1 → Save locally, go to step 2 (Deal creation delayed)
     async function onSubmit(values: FormValues) {
         setIsSubmitting(true)
         const toastId = toast.loading("Salvando seus dados...")
         try {
-            const response = await fetch('/api/bitrix/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values),
-            })
-            const result = await response.json()
-            if (response.ok || result.partialSuccess) {
-                if (result.dealId) {
-                    setDealId(result.dealId)
-                    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, dealId: result.dealId, currentStep: 2 }))
-                }
-                toast.success("Etapa 1 salva! Vamos continuar.", { id: toastId })
-                setCurrentStep(2)
-            } else {
-                toast.error("Ocorreu um problema ao processar seu envio. Por favor, tente novamente.", { id: toastId })
-            }
+            const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, step1: values, currentStep: 2 }))
+            toast.success("Etapa 1 salva! Vamos continuar.", { id: toastId })
+            setCurrentStep(2)
         } catch (error) {
-            toast.error("Falha na conexão. Verifique sua internet e tente novamente.", { id: toastId })
+            toast.error("Ocorreu um erro ao salvar os dados.", { id: toastId })
             console.error(error)
         } finally {
             setIsSubmitting(false)
         }
     }
 
-    // Step 2 → Update deal, go to step 3 (or skip to step 3 directly if no trips)
+    // Step 2 → Save locally, go to step 3
     async function handleTravelIssuedNext(data: TravelIssuedData, skipToPage3: boolean) {
         setTravelIssued(data)
         saveTravelData(data)
-        if (dealId) {
-            setIsSubmitting(true)
-            try {
-                await fetch('/api/bitrix/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dealId, step: 2, data }),
-                })
-            } catch (e) {
-                console.error('Step 2 Bitrix update failed (non-fatal):', e)
-            } finally {
-                setIsSubmitting(false)
-            }
-        }
         const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, currentStep: 3 }))
         setCurrentStep(3)
     }
 
-    // Step 3 → Final submission
+    // Step 3 → Final submission (Create or Update deal)
     async function handleTravelPlannedSubmit(data: TravelPlannedData) {
         setTravelPlanned(data)
         saveTravelData(travelIssued, data)
         setIsSubmitting(true)
         const toastId = toast.loading("Enviando tudo para a gestão...")
         try {
-            if (dealId) {
-                // Prepare full form data for PDF
-                const fullFormData = {
-                    ...form.getValues(),
-                    step2: travelIssued,
-                    step3: data
-                }
+            // Prepare full form data
+            const fullFormData = {
+                ...form.getValues(),
+                step2: travelIssued,
+                step3: data,
+                dealId // Explicitly pass dealId if we have it
+            }
+
+            // 1. Submit to Bitrix (Create or Update)
+            const response = await fetch('/api/bitrix/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(fullFormData),
+            })
+            const result = await response.json()
+
+            if (response.ok || result.partialSuccess) {
+                const finalDealId = result.dealId || dealId
+
+                // 2. Generate and upload PDF
                 const pdfUrl = await generateAndUploadPDF("pdf-capture-area", fullFormData, form.getValues().email, (resolvedTheme as 'dark' | 'light') || 'dark')
 
-                if (!pdfUrl) {
-                    // Suppressing technical error message for the user as requested
-                    console.error("PDF Upload failed: RLS or Bucket issue.");
+                if (pdfUrl && finalDealId) {
+                    // 3. Update with PDF URL
+                    await fetch('/api/bitrix/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            dealId: finalDealId,
+                            step: 3,
+                            data: { ...data, pdfUrl }
+                        }),
+                    })
                 }
 
-                // Add PDF url to the bitrix update data if it exists
-                const updatePayload = {
-                    dealId,
-                    step: 3,
-                    data: {
-                        ...data,
-                        pdfUrl: pdfUrl || ""
-                    }
-                }
-
-                const response = await fetch('/api/bitrix/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatePayload),
-                })
-                const result = await response.json()
-                if (response.ok || result.success) {
-                    toast.success("Dados enviados com sucesso!", { id: toastId })
-                    localStorage.removeItem(STORAGE_KEY)
-                    setIsSuccess(true)
-                } else {
-                    toast.error("Ocorreu um erro ao finalizar seu envio. Por favor, tente novamente.", { id: toastId })
-                }
-            } else {
-                // No dealId — save data locally as fallback
-                toast.success("Informações recebidas com sucesso!", { id: toastId })
+                toast.success("Dados enviados com sucesso!", { id: toastId })
                 localStorage.removeItem(STORAGE_KEY)
                 setIsSuccess(true)
+            } else {
+                toast.error("Ocorreu um erro ao processar seu envio. Por favor, tente novamente.", { id: toastId })
             }
         } catch (error) {
             toast.error("Erro ao enviar seus dados. Por favor, tente novamente mais tarde.", { id: toastId })
@@ -372,53 +351,87 @@ export function ColetaDadosForm() {
                 <CardContent className="p-4 md:p-5 overflow-y-auto custom-scrollbar">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            {/* Identification & Contact */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <FormField
-                                    control={form.control}
-                                    name="fullName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Nome Completo</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Seu nome completo" className="bg-background/40 h-11" autoComplete="name" {...field} />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px]" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="phone"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">WhatsApp</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="(00) 00000-0000"
-                                                    className="bg-background/40 h-11"
-                                                    autoComplete="tel"
-                                                    {...field}
-                                                    onChange={(e) => handlePhoneChange(e, field.onChange)}
-                                                />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px]" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="email"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">E-mail</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="seu@email.com" type="email" className="bg-background/40 h-11" autoComplete="email" {...field} />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px]" />
-                                        </FormItem>
-                                    )}
-                                />
+                            {/* Identification, Contact & Management Details */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-bold text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <ChevronRight className="w-3 h-3" />
+                                    Informações de Contato e Gestão
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <FormField
+                                        control={form.control}
+                                        name="fullName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Nome Completo</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Seu nome completo" className="bg-background/40 h-11" autoComplete="name" {...field} />
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="phone"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">WhatsApp</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="(00) 00000-0000"
+                                                        className="bg-background/40 h-11"
+                                                        autoComplete="tel"
+                                                        {...field}
+                                                        onChange={(e) => handlePhoneChange(e, field.onChange)}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">E-mail</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="seu@email.com" type="email" className="bg-background/40 h-11" autoComplete="email" {...field} />
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="responsavel"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Responsável</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Nome do responsável" className="bg-background/40 h-11" {...field} />
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="md:col-span-2">
+                                        <FormField
+                                            control={form.control}
+                                            name="comentario"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Comentário</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="Alguma observação importante?" className="bg-background/40 h-11" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage className="text-[10px]" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Cards Section */}

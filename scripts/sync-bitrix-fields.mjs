@@ -8,8 +8,10 @@ const BITRIX_WEBHOOK_URL = 'https://fpp.bitrix24.com.br/rest/1058/145rhig7cpmobx
 // Bitrix types: 'string', 'double', 'boolean', 'datetime', 'enumeration'
 const TARGET_FIELDS = [
     { key: 'FPP_NOME', label: 'Nome Completo', type: 'string' },
+    { key: 'FPP_RESPONSAVEL', label: 'Responsável', type: 'string' },
     { key: 'FPP_WHATSAPP', label: 'WhatsApp', type: 'string' },
     { key: 'FPP_EMAIL', label: 'E-mail', type: 'string' },
+    { key: 'FPP_COMENTARIO', label: 'Comentário', type: 'string' },
 
     // CARDS (Up to 5)
     ...Array.from({ length: 5 }).flatMap((_, i) => [
@@ -85,46 +87,43 @@ async function syncFields() {
 
     for (const target of TARGET_FIELDS) {
         // Search by LABEL
-        const match = existing.find(f => {
+        let match = existing.find(f => {
             const labelValue = f.EDIT_FORM_LABEL?.br?.[0] || Object.values(f.EDIT_FORM_LABEL || {})[0] || f.LIST_COLUMN_LABEL?.br?.[0];
             return labelValue === target.label;
         });
 
+        // If no match by label, search by FIELD_NAME (UF_CRM_FPP_...)
+        if (!match) {
+            const potentialName = `UF_CRM_${target.key}`;
+            match = existing.find(f => f.FIELD_NAME === potentialName);
+        }
+
         if (match) {
-            console.log(`[FOUND] Reusing existing field for '${target.label}' -> ${match.FIELD_NAME}`);
+            console.log(`[FOUND] Mapping field '${target.label}' -> ${match.FIELD_NAME}`);
             mappedFields[target.key] = match.FIELD_NAME;
         } else {
             console.log(`[CREATE] Creating new field '${target.label}'...`);
-            const fieldCode = `UF_CRM_${target.key}`;
-
             try {
                 const newFieldId = await callBitrix('crm.deal.userfield.add', {
                     fields: {
                         FIELD_NAME: target.key,
                         USER_TYPE_ID: target.type,
                         XML_ID: `FPP_${target.key}`,
-                        EDIT_FORM_LABEL: {
-                            'br': target.label,
-                            'en': target.label
-                        },
-                        LIST_COLUMN_LABEL: {
-                            'br': target.label,
-                            'en': target.label
-                        },
-                        LIST_FILTER_LABEL: {
-                            'br': target.label,
-                            'en': target.label
-                        },
+                        EDIT_FORM_LABEL: { 'br': target.label, 'en': target.label },
+                        LIST_COLUMN_LABEL: { 'br': target.label, 'en': target.label },
+                        LIST_FILTER_LABEL: { 'br': target.label, 'en': target.label },
                         MANDATORY: 'Y'
                     }
                 });
                 console.log(`         -> Field created successfully! ID: ${newFieldId}`);
-
-                // Note: userfield.add using 'FIELD_NAME: target.key' actually results in 'UF_CRM_YOURKEY'.
-                // So if we send "FPP_NOME", the field is "UF_CRM_FPP_NOME".
                 mappedFields[target.key] = `UF_CRM_${target.key}`;
             } catch (err) {
-                console.error(`         -> Error creating field ${target.label}: ${err.message}`);
+                if (err.message.includes('já existe')) {
+                    console.log(`         -> Field already exists in Bitrix, mapping it.`);
+                    mappedFields[target.key] = `UF_CRM_${target.key}`;
+                } else {
+                    console.error(`         -> Error creating field ${target.label}: ${err.message}`);
+                }
             }
         }
     }

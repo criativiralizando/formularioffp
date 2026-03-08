@@ -168,15 +168,41 @@ export async function generateAndUploadPDF(
         };
 
         // ── Section 1: Personal ──────────────────────────────────────
-        y = localAddSection(doc, '1. Informações Pessoais', y);
+        y = localAddSection(doc, '1. Detalhes de Identificação e Gestão', y);
 
         const step1 = formData.step1 || formData;
         const colW = (pageW - margin * 2) / 3;
 
-        localAddField(doc, 'Nome Completo', step1.fullName, margin, y, colW);
-        localAddField(doc, 'E-mail', step1.email, margin + colW, y, colW);
-        localAddField(doc, 'WhatsApp', step1.phone, margin + colW * 2, y, colW);
-        y += 14;
+        // Row 1: Basic Info
+        let row1Y = y;
+        let maxY = row1Y;
+
+        const y1 = localAddField(doc, 'Nome Completo', step1.fullName, margin, row1Y, colW);
+        const y2 = localAddField(doc, 'E-mail', step1.email, margin + colW, row1Y, colW);
+        const y3 = localAddField(doc, 'WhatsApp', step1.phone, margin + colW * 2, row1Y, colW);
+        maxY = Math.max(y1, y2, y3);
+
+        y = maxY + 6;
+
+        // Row 2: Management Info
+        if (step1.responsavel || step1.comentario) {
+            let row2Y = y;
+            let maxRow2Y = row2Y;
+
+            if (step1.responsavel) {
+                maxRow2Y = localAddField(doc, 'Responsável', step1.responsavel, margin, row2Y, colW);
+            }
+
+            if (step1.comentario) {
+                // If comment exists, put it in the remaining space or full width if responsavel is empty
+                const commentX = step1.responsavel ? margin + colW : margin;
+                const commentW = step1.responsavel ? colW * 2 : colW * 3;
+                const yComm = localAddField(doc, 'Comentário', step1.comentario, commentX, row2Y, commentW);
+                maxRow2Y = Math.max(maxRow2Y, yComm);
+            }
+
+            y = maxRow2Y + 6;
+        }
 
         // ── Section 2: Cards ─────────────────────────────────────────
         y = checkPage(doc, y + 4, pageH);
