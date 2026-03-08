@@ -309,7 +309,7 @@ export function ColetaDadosForm() {
                     setTravelPlanned(defaultTravelPlanned)
                     setDealId(null)
                     localStorage.removeItem(STORAGE_KEY)
-                }} variant="default" className="mt-8 rounded-full px-8 text-white hover:text-[#e34248]">
+                }} variant="default" className="mt-8 rounded-full px-8 text-slate-900 hover:text-slate-900 hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(227,66,72,0.4)] transition-all duration-300">
                     <RefreshCcw className="w-4 h-4 mr-2" />
                     Voltar ao Início
                 </Button>
@@ -731,7 +731,7 @@ export function ColetaDadosForm() {
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-primary transition-all rounded-lg font-bold text-xs"
+                                            className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 dark:text-white dark:hover:text-[#22c55e] text-slate-900 hover:text-[#e34248] transition-all rounded-lg font-bold text-xs bg-transparent hover:bg-transparent"
                                             onClick={() => append({ bank: "", card: "", brand: "", category: "", monthlySpend: "", annuityFree: "" })}
                                         >
                                             <Plus className="w-4 h-4 mr-2" />

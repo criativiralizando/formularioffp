@@ -383,7 +383,7 @@ export function TravelIssuedForm({ initialData, onNext, onBack, isSubmitting }: 
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 hover:text-primary transition-all rounded-lg font-bold text-xs gap-2"
+                                className="h-10 px-8 border-dashed border-primary/30 hover:border-primary/60 dark:text-white dark:hover:text-[#22c55e] text-slate-900 hover:text-[#e34248] transition-all rounded-lg font-bold text-xs gap-2 bg-transparent hover:bg-transparent"
                                 onClick={addTrip}
                             >
                                 <Plus className="w-4 h-4" />
