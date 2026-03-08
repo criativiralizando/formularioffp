@@ -1,6 +1,15 @@
 import { jsPDF } from 'jspdf';
 import { supabase } from './supabaseClient';
 
+const sanitizeFilename = (str: string) => {
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Remove accents
+        .replace(/[^a-zA-Z0-9]/g, "_") // Remove special chars
+        .replace(/__+/g, "_")          // Remove double underscores
+        .replace(/^_|_$/g, "");        // Remove leading/trailing underscores
+};
+
 export async function generateAndUploadPDF(formData: any, email: string): Promise<string | null> {
     try {
         // Inicializa o jsPDF com compressão ativada para deixar o arquivo mais leve
@@ -9,14 +18,22 @@ export async function generateAndUploadPDF(formData: any, email: string): Promis
         // Configurações iniciais
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(22);
-        doc.text('Resumo do Formulário FFP', 20, 20);
+        doc.text('Relatório Consolidado - Coleta FFP', 20, 20);
 
-        doc.setFontSize(12);
-        let yPos = 40;
-        const lineHeight = 7;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, 27);
+
+        // Linha divisória inicial
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, 32, 190, 32);
+
+        doc.setFontSize(11);
+        let yPos = 42;
+        const lineHeight = 6;
         const pageHeight = 280;
 
-        const addText = (text: string, isBold: boolean = false) => {
+        const addText = (text: string, isBold: boolean = false, spacing: number = lineHeight) => {
             if (yPos > pageHeight) {
                 doc.addPage();
                 yPos = 20;
@@ -25,113 +42,112 @@ export async function generateAndUploadPDF(formData: any, email: string): Promis
 
             const splitText = doc.splitTextToSize(text, 170);
             doc.text(splitText, 20, yPos);
-            yPos += (splitText.length * lineHeight);
+            yPos += (splitText.length * spacing);
+        };
+
+        const addSeparator = () => {
+            yPos += 2;
+            doc.setDrawColor(230, 230, 230);
+            doc.line(20, yPos, 190, yPos);
+            yPos += 8;
         };
 
         // --- Passo 1: Informações Pessoais ---
-        addText('INFORMAÇÕES PESSOAIS', true);
-        addText(`Nome: ${formData.firstName || ''} ${formData.lastName || ''}`);
-        addText(`E-mail: ${formData.email || ''}`);
-        addText(`CPF: ${formData.cpf || ''}`);
-        addText(`Telefone: ${formData.phone || ''}`);
-        addText(`Estado Civil: ${formData.maritalStatus || ''}`);
-        addText(`Renda Fixa: ${formData.fixedIncome || ''}`);
-        addText(`Renda Variável: ${formData.variableIncome || ''}`);
-        yPos += 5;
+        addText('1. INFORMAÇÕES PESSOAIS', true, 8);
+        addText(`Nome Completo: ${formData.fullName || 'Não informado'}`);
+        addText(`E-mail: ${formData.email || 'Não informado'}`);
+        addText(`Telefone/WhatsApp: ${formData.phone || 'Não informado'}`);
+
+        yPos += 4;
 
         // --- Passo 1: Cartões ---
         if (formData.cards && formData.cards.length > 0) {
-            addText('CARTÕES', true);
+            addText('CARTÕES E GASTOS', true, 8);
             formData.cards.forEach((card: any, index: number) => {
-                addText(`Cartão ${index + 1}:`);
-                addText(`  Banco: ${card.bank === 'Outro' ? card.otherBank : card.bank}`);
-                addText(`  Bandeira: ${card.brand}`);
-                addText(`  Categoria: ${card.category}`);
-                addText(`  Programa de Pontos: ${card.loyaltyProgram === 'Outro' ? card.otherProgram : card.loyaltyProgram}`);
-                addText(`  Tipo de Conversão: ${card.conversionType}`);
-                addText(`  Valor da Anuidade: ${card.annuityValue === 'Outro' ? card.otherAnnuity : card.annuityValue}`);
+                addText(`Cartão ${index + 1}:`, true);
+                addText(`  Banco: ${card.bank === 'Outro' ? card.bankOther : card.bank}`);
+                addText(`  Cartão: ${card.card === 'Outro' ? card.cardOther : card.card}`);
+                addText(`  Bandeira: ${card.brand === 'Outro' ? card.brandOther : card.brand}`);
+                addText(`  Categoria: ${card.category === 'Outro' ? card.categoryOther : card.category}`);
+                addText(`  Gasto Mensal: ${card.monthlySpend || 'N/A'}`);
+                addText(`  Isento de Anuidade: ${card.annuityFree || 'N/A'}`);
+                yPos += 2;
             });
-            yPos += 5;
         }
+
+        addSeparator();
 
         // --- Passo 2: Viagens Emitidas ---
         if (formData.step2) {
-            addText('VIAGENS EMITIDAS', true);
-            addText(`Possui viagens emitidas: ${formData.step2.hasIssuedTrips}`);
+            addText('2. VIAGENS JÁ EMITIDAS', true, 8);
+            addText(`Possui viagens emitidas no momento? ${formData.step2.hasIssuedTrips}`);
 
             if (formData.step2.hasIssuedTrips === 'Sim' && formData.step2.trips) {
                 formData.step2.trips.forEach((trip: any, index: number) => {
-                    addText(`Viagem Emitida ${index + 1}:`, true);
-                    addText(`  Data de Ida: ${trip.departureDate || ''}`);
-                    addText(`  Data de Volta: ${trip.returnDate || ''}`);
-                    addText(`  País: ${trip.country || ''}`);
-                    addText(`  Destino Principal: ${trip.city || ''}`);
-                    if (trip.hasMultipleDestinations === 'Sim') {
+                    yPos += 2;
+                    addText(`Viagem Emitida #${index + 1}:`, true);
+                    addText(`  Período: ${trip.departureDate || 'N/A'} até ${trip.returnDate || 'N/A'}`);
+                    addText(`  Destino: ${trip.city || ''}, ${trip.country || ''}`);
+                    if (trip.multipleDestinations === 'Sim') {
                         addText(`  Destinos Adicionais: ${trip.extraDestinations || ''}`);
                     }
-                    addText(`  Adultos: ${trip.adults || 0}`);
-                    addText(`  Crianças: ${trip.children || 0}`);
-                    addText(`  Bebês: ${trip.babies || 0}`);
+                    addText(`  Passageiros: ${trip.adults || 0} Adultos, ${trip.children || 0} Crianças, ${trip.babies || 0} Bebês`);
+                    addText(`  Motivo: ${trip.travelReason === 'Outro' ? trip.travelReasonOther : trip.travelReason}`);
 
-                    addText(`  Motivo: ${trip.reason === 'Outro' ? trip.otherReason : trip.reason}`);
-
-                    if (trip.includedServices && trip.includedServices.length > 0) {
-                        addText(`  Serviços Incluídos: ${trip.includedServices.join(', ')}`);
+                    if (trip.services && trip.services.length > 0) {
+                        addText(`  Serviços já reservados: ${trip.services.join(', ')}`);
                     }
 
-                    if (trip.pendingServices && trip.pendingServices.length > 0) {
-                        let pendingStr = trip.pendingServices.join(', ');
-                        if (trip.pendingServices.includes('Outro') && trip.otherPendingService) {
-                            pendingStr = pendingStr.replace('Outro', `Outro (${trip.otherPendingService})`);
+                    if (trip.unreservedServices && trip.unreservedServices.length > 0) {
+                        let pendingStr = trip.unreservedServices.join(', ');
+                        if (trip.unreservedServices.includes('Outro') && trip.unreservedOther) {
+                            pendingStr = pendingStr.replace('Outro', `Outro (${trip.unreservedOther})`);
                         }
                         addText(`  Serviços Pendentes: ${pendingStr}`);
                     }
 
-                    addText(`  Orçamento Faltante: ${trip.budgetRange || ''}`);
-                    addText(`  Equipe pode ajudar: ${trip.teamHelp || 'Não'}`);
-                    if (trip.teamHelp === 'Sim') {
-                        addText(`  Observações para equipe: ${trip.teamHelpNotes || ''}`);
+                    addText(`  Orçamento Planejado: ${trip.budget || ''}`);
+                    addText(`  Deseja ajuda da equipe FFP para otimizar? ${trip.teamOptimize || 'Não'}`);
+                    if (trip.travelNotes) {
+                        addText(`  Observações: ${trip.travelNotes}`);
                     }
                 });
             }
-            yPos += 5;
+            yPos += 4;
+            addSeparator();
         }
 
         // --- Passo 3: Viagens Planejadas ---
         if (formData.step3) {
-            addText('VIAGENS PLANEJADAS (SEM RESERVAS)', true);
-            addText(`Tem viagem planejada: ${formData.step3.hasPlannedTrips}`);
+            addText('3. PRÓXIMAS VIAGENS (PLANEJADAS)', true, 8);
+            addText(`Tem alguma viagem certa, mas ainda não reservou nada? ${formData.step3.hasPlannedTrip}`);
 
-            if (formData.step3.hasPlannedTrips === 'Sim') {
-                addText(`  País: ${formData.step3.country || ''}`);
-                addText(`  Destino Principal: ${formData.step3.city || ''}`);
-                if (formData.step3.hasMultipleDestinations === 'Sim') {
+            if (formData.step3.hasPlannedTrip === 'Sim') {
+                yPos += 2;
+                addText(`  Destino: ${formData.step3.city || ''}, ${formData.step3.country || ''}`);
+                if (formData.step3.multipleDestinations === 'Sim') {
                     addText(`  Destinos Adicionais: ${formData.step3.extraDestinations || ''}`);
                 }
-                addText(`  Quando: ${formData.step3.when || ''}`);
-                if (formData.step3.when !== 'Ainda não tenho data prevista') {
-                    addText(`  Data de Ida: ${formData.step3.departureDate || ''}`);
-                    addText(`  Data de Volta: ${formData.step3.returnDate || ''}`);
+                addText(`  Período Previsto: ${formData.step3.timeframe || 'Não definido'}`);
+                if (formData.step3.timeframe === 'Já tenho as datas') {
+                    addText(`  Datas: ${formData.step3.plannedDepartureDate || ''} até ${formData.step3.plannedReturnDate || ''}`);
                 }
 
-                addText(`  Adultos: ${formData.step3.adults || 0}`);
-                addText(`  Crianças: ${formData.step3.children || 0}`);
-                addText(`  Bebês: ${formData.step3.babies || 0}`);
-
-                addText(`  Motivo: ${formData.step3.reason === 'Outro' ? formData.step3.otherReason : formData.step3.reason}`);
+                addText(`  Passageiros: ${formData.step3.adults || 0} Adultos, ${formData.step3.children || 0} Crianças, ${formData.step3.babies || 0} Bebês`);
+                addText(`  Motivo: ${formData.step3.travelReason === 'Outro' ? formData.step3.travelReasonOther : formData.step3.travelReason}`);
 
                 if (formData.step3.plannedServices && formData.step3.plannedServices.length > 0) {
                     let plannedStr = formData.step3.plannedServices.join(', ');
-                    if (formData.step3.plannedServices.includes('Outro') && formData.step3.otherPlannedService) {
-                        plannedStr = plannedStr.replace('Outro', `Outro (${formData.step3.otherPlannedService})`);
+                    if (formData.step3.plannedServices.includes('Outro') && formData.step3.plannedServicesOther) {
+                        plannedStr = plannedStr.replace('Outro', `Outro (${formData.step3.plannedServicesOther})`);
                     }
-                    addText(`  Serviços Planejados: ${plannedStr}`);
+                    addText(`  Serviços Necessários: ${plannedStr}`);
                 }
 
-                addText(`  Orçamento: ${formData.step3.budgetRange || ''}`);
-                addText(`  Equipe pode ajudar: ${formData.step3.teamHelp || 'Não'}`);
-                if (formData.step3.teamHelp === 'Sim') {
-                    addText(`  Observações para equipe: ${formData.step3.teamHelpNotes || ''}`);
+                addText(`  Orçamento Estimado: ${formData.step3.budget || ''}`);
+                addText(`  Deseja ajuda da equipe FFP para otimizar? ${formData.step3.teamHelp || 'Não'}`);
+                if (formData.step3.teamHelpNotes) {
+                    addText(`  Observações: ${formData.step3.teamHelpNotes}`);
                 }
             }
         }
@@ -140,10 +156,11 @@ export async function generateAndUploadPDF(formData: any, email: string): Promis
         const pdfArrayBuffer = doc.output('arraybuffer');
         const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
 
-        // Criar um nome de arquivo único
+        // Criar um nome de arquivo único e sanitizado
         const timestamp = new Date().getTime();
-        const safeEmail = email.replace(/[^a-zA-Z0-9]/g, '_');
-        const fileName = `coleta_${safeEmail}_${timestamp}.pdf`;
+        const rawName = formData.fullName || email.split('@')[0];
+        const safeName = sanitizeFilename(rawName);
+        const fileName = `coleta_${safeName}_${timestamp}.pdf`;
 
         // Upload para o Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage

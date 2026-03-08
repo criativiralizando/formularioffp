@@ -272,24 +272,54 @@ export function TravelPlannedForm({ initialData, onSubmit, onBack, isSubmitting 
                 </motion.div>
             )}
 
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-8 pt-4 pb-12 border-t border-border/10 relative w-full">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-8 pt-6 pb-16 border-t border-border/10 relative w-full overflow-visible">
                 <Button
                     type="button"
                     variant="ghost"
                     onClick={onBack}
-                    className="md:absolute left-0 text-muted-foreground hover:text-foreground w-full md:w-auto"
+                    className="md:absolute left-0 text-muted-foreground hover:text-foreground w-full md:w-auto h-11 px-6 z-10"
                 >
                     Voltar
                 </Button>
-                <div className="flex-1 flex justify-center w-full md:w-auto">
-                    <Button
-                        type="button"
-                        onClick={() => onSubmit(data)}
-                        disabled={!data.hasPlannedTrip || isSubmitting}
-                        className="w-full md:w-auto text-sm px-8 gap-2 bg-primary/90 hover:bg-primary text-primary-foreground font-bold transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-xl hover:shadow-primary/30"
+
+                <div className="relative group w-full md:w-auto flex justify-center overflow-visible">
+                    {/* Glow effect that won't be clipped easily */}
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/0 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                    <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        initial={false}
+                        className="relative w-full md:w-auto"
                     >
-                        {isSubmitting ? "Enviando..." : "Enviar para Gestão"} <Send className="w-4 h-4 ml-2" />
-                    </Button>
+                        <Button
+                            type="button"
+                            onClick={() => onSubmit(data)}
+                            disabled={!data.hasPlannedTrip || isSubmitting}
+                            className={`
+                                w-full md:w-auto text-sm px-10 h-12 gap-2 font-black uppercase tracking-tight 
+                                shadow-lg transition-all duration-300
+                                bg-[#e34248] dark:bg-primary/90 
+                                hover:bg-[#ff5d64] dark:hover:bg-primary 
+                                text-white dark:text-primary-foreground
+                                ring-2 ring-[#e34248]/20 dark:ring-primary/20
+                                hover:ring-[#e34248]/40 dark:hover:ring-primary/40
+                                hover:shadow-[0_0_30px_rgba(227,66,72,0.4)] dark:hover:shadow-[0_0_30px_rgba(34,197,94,0.3)]
+                                rounded-xl
+                            `}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <span className="animate-pulse">Enviando...</span>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin ml-2" />
+                                </>
+                            ) : (
+                                <>
+                                    Enviar para Gestão <Send className="w-4 h-4 ml-2" />
+                                </>
+                            )}
+                        </Button>
+                    </motion.div>
                 </div>
             </div>
         </motion.div>
