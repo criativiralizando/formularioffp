@@ -395,12 +395,7 @@ export function ColetaDadosForm() {
                                         <FormItem>
                                             <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Nome Completo</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    placeholder="Nome do Cliente"
-                                                    className="h-11 text-xs"
-                                                    autoComplete="name"
-                                                    {...field}
-                                                />
+                                                <Input placeholder="Nome do Cliente" className="h-11 text-xs" {...field} />
                                             </FormControl>
                                             <FormMessage className="text-[8px]" />
                                         </FormItem>
@@ -416,7 +411,6 @@ export function ColetaDadosForm() {
                                                 <Input
                                                     placeholder="(99) 99999-9999"
                                                     className="h-11 text-xs"
-                                                    autoComplete="tel"
                                                     {...field}
                                                     onChange={(e) => handlePhoneChange(e, field.onChange)}
                                                 />
@@ -432,12 +426,7 @@ export function ColetaDadosForm() {
                                         <FormItem>
                                             <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">E-mail</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    placeholder="email@exemplo.com"
-                                                    className="h-11 text-xs"
-                                                    autoComplete="email"
-                                                    {...field}
-                                                />
+                                                <Input placeholder="email@exemplo.com" className="h-11 text-xs" {...field} />
                                             </FormControl>
                                             <FormMessage className="text-[8px]" />
                                         </FormItem>
@@ -445,7 +434,60 @@ export function ColetaDadosForm() {
                                 />
                             </div>
 
-                            {/* Fields removed per user request: responsavel, tipoDemanda, comentario */}
+                            {/* Management Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="responsavel"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Responsável</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Nome do Responsável" className="h-11 text-xs" {...field} />
+                                            </FormControl>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="tipoDemanda"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Tipo de Demanda <span className="text-primary">*</span></FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="h-11 text-xs">
+                                                        <SelectValue placeholder="Selecione a Demanda" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="SPA" className="text-xs">SPA</SelectItem>
+                                                    <SelectItem value="EMISSÃO" className="text-xs">EMISSÃO</SelectItem>
+                                                    <SelectItem value="SPA + EMISSÃO" className="text-xs">SPA + EMISSÃO</SelectItem>
+                                                    <SelectItem value="CARTÕES" className="text-xs">CARTÕES</SelectItem>
+                                                    <SelectItem value="OUTROS" className="text-xs">OUTROS</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage className="text-[8px]" />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="comentario"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Comentário / Observações</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Informações adicionais para a gestão..." className="min-h-[80px] text-xs" {...field} />
+                                        </FormControl>
+                                        <FormMessage className="text-[8px]" />
+                                    </FormItem>
+                                )}
+                            />
 
                             {/* Cards Section - Hidden for Early Stages */}
                             {!isEarlyStage && (
@@ -469,9 +511,7 @@ export function ColetaDadosForm() {
                                             const baseCardsList = watchCardBank && BANK_DATA[watchCardBank as keyof typeof BANK_DATA]
                                                 ? Object.keys(BANK_DATA[watchCardBank as keyof typeof BANK_DATA].cards)
                                                 : []
-                                            const availableCardsList = Array.from(new Set(baseCardsList.filter(c => c !== "Outro")))
-                                                .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-                                                .concat(["Outro"])
+                                            const availableCardsList = [...baseCardsList, "Outro"]
 
                                             const enabled = {
                                                 card: !!watchCardBank,
@@ -531,7 +571,11 @@ export function ColetaDadosForm() {
                                                                                 </SelectTrigger>
                                                                             </FormControl>
                                                                             <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                {Object.keys(BANK_DATA).filter(b => b !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(bank => (
+                                                                                {Object.keys(BANK_DATA).sort((a, b) => {
+                                                                                    if (a === 'Outro') return 1;
+                                                                                    if (b === 'Outro') return -1;
+                                                                                    return a.localeCompare(b, 'pt-BR');
+                                                                                }).map(bank => (
                                                                                     <SelectItem key={bank} value={bank} className="text-xs">{bank}</SelectItem>
                                                                                 ))}
                                                                             </SelectContent>
@@ -618,8 +662,8 @@ export function ColetaDadosForm() {
                                                                                     </SelectTrigger>
                                                                                 </FormControl>
                                                                                 <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                    {availableBrands.filter(b => b !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(brand => (
-                                                                                        <SelectItem key={brand} value={brand} className="text-xs">{brand}</SelectItem>
+                                                                                    {availableBrands.map(b => (
+                                                                                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
                                                                                     ))}
                                                                                 </SelectContent>
                                                                             </Select>
@@ -668,7 +712,7 @@ export function ColetaDadosForm() {
                                                                                     </SelectTrigger>
                                                                                 </FormControl>
                                                                                 <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                    {availableCategories.filter(c => c !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(c => (
+                                                                                    {availableCategories.map(c => (
                                                                                         <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
                                                                                     ))}
                                                                                 </SelectContent>
@@ -679,34 +723,6 @@ export function ColetaDadosForm() {
                                                                 }}
                                                             />
                                                         </div>
-
-                                                        {/* Other Inputs - Repositioned above financial data */}
-                                                        <AnimatePresence>
-                                                            {(watchCardBank === "Outro" || watchCardName === "Outro" || watchBrand === "Outro" || watchCategory === "Outro") && (
-                                                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-primary/5 mt-2">
-                                                                    {watchCardBank === "Outro" && (
-                                                                        <FormField control={form.control} name={`cards.${index}.bankOther`} render={({ field }) => (
-                                                                            <Input placeholder="Qual o Banco?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                        )} />
-                                                                    )}
-                                                                    {watchCardName === "Outro" && (
-                                                                        <FormField control={form.control} name={`cards.${index}.cardOther`} render={({ field }) => (
-                                                                            <Input placeholder="Qual o Cartão?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                        )} />
-                                                                    )}
-                                                                    {watchBrand === "Outro" && (
-                                                                        <FormField control={form.control} name={`cards.${index}.brandOther`} render={({ field }) => (
-                                                                            <Input placeholder="Qual a Bandeira?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                        )} />
-                                                                    )}
-                                                                    {watchCategory === "Outro" && (
-                                                                        <FormField control={form.control} name={`cards.${index}.categoryOther`} render={({ field }) => (
-                                                                            <Input placeholder="Qual a Categoria?" className="h-10 text-xs bg-background/60" {...field} />
-                                                                        )} />
-                                                                    )}
-                                                                </motion.div>
-                                                            )}
-                                                        </AnimatePresence>
 
                                                         {/* Line 2: Financial data */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -760,6 +776,33 @@ export function ColetaDadosForm() {
                                                         </div>
                                                     </div>
 
+                                                    {/* Other Inputs */}
+                                                    <AnimatePresence>
+                                                        {(watchCardBank === "Outro" || watchCardName === "Outro" || watchBrand === "Outro" || watchCategory === "Outro") && (
+                                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-primary/5 mt-2">
+                                                                {watchCardBank === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.bankOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual o Banco?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchCardName === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.cardOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual o Cartão?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchBrand === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.brandOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual a Bandeira?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                                {watchCategory === "Outro" && (
+                                                                    <FormField control={form.control} name={`cards.${index}.categoryOther`} render={({ field }) => (
+                                                                        <Input placeholder="Qual a Categoria?" className="h-10 text-xs bg-background/60" {...field} />
+                                                                    )} />
+                                                                )}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </motion.div>
                                             )
                                         })}

@@ -45,14 +45,9 @@ export async function POST(request: Request) {
         const assignField = (key: keyof typeof fieldMap, value: any) => {
             const bitrixKey = fieldMap[key as keyof typeof fieldMap];
             if (bitrixKey && value !== undefined && value !== null && value !== '') {
-                if (typeof value === 'boolean') {
-                    customFields[bitrixKey] = value ? 'Sim' : 'Não';
-                } else {
-                    customFields[bitrixKey] = Array.isArray(value) ? value.join(', ') : String(value);
-                }
+                customFields[bitrixKey] = Array.isArray(value) ? value.join(', ') : String(value);
             }
         };
-        Greenland:
 
         // Identification & Management (PRIORITY)
         assignField('NOME', data.fullName);
@@ -125,12 +120,12 @@ export async function POST(request: Request) {
         (data.cards || []).forEach((c: any, index: number) => {
             cardsHtml += `
         <br/><b>CARTÃO ${index + 1}</b><br/>
-        <b>Banco:</b> ${(c.bank === 'Outro' ? c.bankOther : c.bank) || 'N/A'}<br/>
-        <b>Cartão:</b> ${(c.card === 'Outro' ? c.cardOther : c.card) || 'N/A'}<br/>
-        <b>Bandeira:</b> ${(c.brand === 'Outro' ? c.brandOther : c.brand) || 'N/A'}<br/>
-        <b>Categoria:</b> ${(c.category === 'Outro' ? c.categoryOther : c.category) || 'N/A'}<br/>
-        <b>Gasto Mensal:</b> ${c.monthlySpend || 'N/A'}<br/>
-        <b>Anuidade:</b> ${c.annuityFree || 'N/A'}<br/>
+        <b>Banco:</b> ${c.bank === 'Outro' ? c.bankOther : c.bank}<br/>
+        <b>Cartão:</b> ${c.card === 'Outro' ? c.cardOther : c.card}<br/>
+        <b>Bandeira:</b> ${c.brand === 'Outro' ? c.brandOther : c.brand}<br/>
+        <b>Categoria:</b> ${c.category === 'Outro' ? c.categoryOther : c.category}<br/>
+        <b>Gasto Mensal:</b> ${c.monthlySpend}<br/>
+        <b>Anuidade:</b> ${c.annuityFree}<br/>
       `;
         });
 
@@ -139,9 +134,9 @@ export async function POST(request: Request) {
       <b>Responsável:</b> ${data.responsavel || 'N/A'}<br/>
       <b>Comentário:</b> ${data.comentario || 'N/A'}<br/>
       <hr/>
-      <b>Nome Cliente:</b> ${data.fullName || 'N/A'}<br/>
-      <b>WhatsApp:</b> ${data.phone || 'N/A'}<br/>
-      <b>E-mail:</b> ${data.email || 'N/A'}<br/>
+      <b>Nome Cliente:</b> ${data.fullName}<br/>
+      <b>WhatsApp:</b> ${data.phone}<br/>
+      <b>E-mail:</b> ${data.email}<br/>
       ${cardsHtml}
       <br/><i>* Demais informações preenchidas estão na aba "COLETA DE INFORMAÇÕES" do card.</i>
     `;

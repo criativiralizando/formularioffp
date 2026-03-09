@@ -125,13 +125,11 @@ export function TravelPlannedForm({ initialData, onSubmit, onBack, isSubmitting 
                         <div>
                             <FieldLabel>País</FieldLabel>
                             <Input className="bg-background/40 h-11" placeholder="Ex: Brasil, Portugal..." value={data.country}
-                                autoComplete="country-name"
                                 onChange={e => setField("country", e.target.value)} />
                         </div>
                         <div>
                             <FieldLabel>Cidade / destino principal</FieldLabel>
                             <Input className="bg-background/40 h-11" placeholder="Ex: Lisboa, Cancún..." value={data.city}
-                                autoComplete="address-level2"
                                 onChange={e => setField("city", e.target.value)} />
                         </div>
                     </div>
@@ -212,21 +210,21 @@ export function TravelPlannedForm({ initialData, onSubmit, onBack, isSubmitting 
 
                     {/* Q6 - Services planned */}
                     <SectionLabel>Quais serviços você pretende incluir?</SectionLabel>
-                    <div className="quadrant-grid">
+                    <div className="space-y-3">
                         {SERVICE_GROUPS.map(group => (
-                            <div key={group.label} className="quadrant-item">
-                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{group.label}</p>
-                                <div className="space-y-2">
+                            <div key={group.label}>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">{group.label}</p>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5">
                                     {group.items.map(item => {
                                         const displayName = item.includes(" - ") ? "Outro" : item
                                         return (
-                                            <label key={item} className="flex items-center gap-2 cursor-pointer text-xs group/item">
+                                            <label key={item} className="flex items-center gap-2 cursor-pointer text-xs">
                                                 <Checkbox
                                                     checked={data.plannedServices.includes(item)}
                                                     onCheckedChange={() => toggleService(item)}
                                                     className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                                 />
-                                                <span className="group-hover/item:text-primary transition-colors">{displayName}</span>
+                                                {displayName}
                                             </label>
                                         )
                                     })}
