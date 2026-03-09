@@ -395,7 +395,12 @@ export function ColetaDadosForm() {
                                         <FormItem>
                                             <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Nome Completo</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Nome do Cliente" className="h-11 text-xs" {...field} />
+                                                <Input
+                                                    placeholder="Nome do Cliente"
+                                                    className="h-11 text-xs"
+                                                    autoComplete="name"
+                                                    {...field}
+                                                />
                                             </FormControl>
                                             <FormMessage className="text-[8px]" />
                                         </FormItem>
@@ -411,6 +416,7 @@ export function ColetaDadosForm() {
                                                 <Input
                                                     placeholder="(99) 99999-9999"
                                                     className="h-11 text-xs"
+                                                    autoComplete="tel"
                                                     {...field}
                                                     onChange={(e) => handlePhoneChange(e, field.onChange)}
                                                 />
@@ -426,7 +432,12 @@ export function ColetaDadosForm() {
                                         <FormItem>
                                             <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">E-mail</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="email@exemplo.com" className="h-11 text-xs" {...field} />
+                                                <Input
+                                                    placeholder="email@exemplo.com"
+                                                    className="h-11 text-xs"
+                                                    autoComplete="email"
+                                                    {...field}
+                                                />
                                             </FormControl>
                                             <FormMessage className="text-[8px]" />
                                         </FormItem>
@@ -571,11 +582,7 @@ export function ColetaDadosForm() {
                                                                                 </SelectTrigger>
                                                                             </FormControl>
                                                                             <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                {Object.keys(BANK_DATA).sort((a, b) => {
-                                                                                    if (a === 'Outro') return 1;
-                                                                                    if (b === 'Outro') return -1;
-                                                                                    return a.localeCompare(b, 'pt-BR');
-                                                                                }).map(bank => (
+                                                                                {Object.keys(BANK_DATA).filter(b => b !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(bank => (
                                                                                     <SelectItem key={bank} value={bank} className="text-xs">{bank}</SelectItem>
                                                                                 ))}
                                                                             </SelectContent>
@@ -662,8 +669,8 @@ export function ColetaDadosForm() {
                                                                                     </SelectTrigger>
                                                                                 </FormControl>
                                                                                 <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                    {availableBrands.map(b => (
-                                                                                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                                                                                    {availableBrands.filter(b => b !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(brand => (
+                                                                                        <SelectItem key={brand} value={brand} className="text-xs">{brand}</SelectItem>
                                                                                     ))}
                                                                                 </SelectContent>
                                                                             </Select>
@@ -712,7 +719,7 @@ export function ColetaDadosForm() {
                                                                                     </SelectTrigger>
                                                                                 </FormControl>
                                                                                 <SelectContent className="max-h-[300px] min-w-[max-content] w-[var(--radix-select-trigger-width)]">
-                                                                                    {availableCategories.map(c => (
+                                                                                    {availableCategories.filter(c => c !== "Outro").sort((a, b) => a.localeCompare(b, 'pt-BR')).concat(["Outro"]).map(c => (
                                                                                         <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
                                                                                     ))}
                                                                                 </SelectContent>

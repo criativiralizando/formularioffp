@@ -225,11 +225,13 @@ export function TravelIssuedForm({ initialData, onNext, onBack, isSubmitting }: 
                                     <div>
                                         <FieldLabel>País</FieldLabel>
                                         <Input className="bg-background/40 h-11" placeholder="Ex: Brasil, Portugal..." value={trip.country}
+                                            autoComplete="country-name"
                                             onChange={e => setTripField(index, "country", e.target.value)} />
                                     </div>
                                     <div>
                                         <FieldLabel>Cidade / destino principal</FieldLabel>
                                         <Input className="bg-background/40 h-11" placeholder="Ex: Lisboa, Cancún..." value={trip.city}
+                                            autoComplete="address-level2"
                                             onChange={e => setTripField(index, "city", e.target.value)} />
                                     </div>
                                 </div>
@@ -284,37 +286,29 @@ export function TravelIssuedForm({ initialData, onNext, onBack, isSubmitting }: 
                                 )}
 
                                 {/* Q6 - Services */}
-                                <SectionLabel>Serviços que fazem parte da viagem</SectionLabel>
-                                <div className="space-y-3">
+                                <SectionLabel>SEVIÇOS JÁ CONTRATADOS PARA A VIAGEM</SectionLabel>
+                                <div className="quadrant-grid">
                                     {SERVICE_GROUPS.map(group => (
-                                        <div key={group.label}>
-                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">{group.label}</p>
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5">
+                                        <div key={group.label} className="quadrant-item">
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{group.label}</p>
+                                            <div className="space-y-2">
                                                 {group.items.map(item => {
                                                     const displayName = item.includes(" - ") ? "Outro" : item
                                                     return (
-                                                        <label key={item} className="flex items-center gap-2 cursor-pointer text-xs">
+                                                        <label key={item} className="flex items-center gap-2 cursor-pointer text-xs group/item">
                                                             <Checkbox
                                                                 checked={trip.services.includes(item)}
                                                                 onCheckedChange={() => toggleService(index, item)}
                                                                 className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                                             />
-                                                            {displayName}
+                                                            <span className="group-hover/item:text-primary transition-colors">{displayName}</span>
                                                         </label>
                                                     )
                                                 })}
                                             </div>
                                             {trip.services.includes(`${group.label} - Outro`) && (
-                                                <div className="mt-1.5">
-                                                    <Input
-                                                        className="bg-background/40 h-9 text-xs"
-                                                        placeholder={`Outro serviço de ${group.label}...`}
-                                                    /* You would ideally bind this to a specialized state if they are all unique,
-                                                       but keeping it simple, they can type here, though this isn't strictly bound 
-                                                       in the data model explicitly per 'outro' group beyond being a single string or just unmanaged.
-                                                       Since original code didn't bind it, I am also leaving it purely aesthetic, 
-                                                       or we can bind it to travelNotes later if needed */
-                                                    />
+                                                <div className="mt-2 text-xs text-muted-foreground italic">
+                                                    * Descreva no campo de observações ao final.
                                                 </div>
                                             )}
                                         </div>

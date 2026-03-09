@@ -7,8 +7,8 @@ export default function Home() {
         <ColetaDadosForm />
       </main>
 
-      {/* Persistent Footer - fixed bottom to avoid scroll */}
-      <footer className="fixed bottom-4 text-center text-[10px] uppercase tracking-widest text-slate-500 dark:text-muted-foreground/30 pointer-events-none">
+      {/* Persistent Footer - fixed bottom on desktop, static on mobile */}
+      <footer className="mt-8 mb-4 lg:fixed lg:bottom-4 lg:mb-0 text-center text-[10px] uppercase tracking-widest text-slate-500 dark:text-muted-foreground/30 pointer-events-none">
         <p>&copy; {new Date().getFullYear()} Fly Per Points. Todos os direitos reservados.</p>
       </footer>
     </div>
