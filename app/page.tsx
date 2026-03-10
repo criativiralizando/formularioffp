@@ -1,10 +1,13 @@
+import { Suspense } from "react";
 import { ColetaDadosForm } from "@/components/ColetaDadosForm";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-2 lg:p-0 overflow-hidden">
       <main className="w-full max-w-4xl max-h-[95vh] flex items-center justify-center relative">
-        <ColetaDadosForm />
+        <Suspense fallback={<div className="text-muted-foreground text-sm">Carregando...</div>}>
+          <ColetaDadosForm />
+        </Suspense>
       </main>
 
       {/* Persistent Footer - fixed bottom to avoid scroll */}
